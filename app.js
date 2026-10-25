@@ -193,8 +193,24 @@ const speech = {
 const canVoice = () => settings.voice && speech.canSpeak(settings.lang);
 
 let lastInput = 'pointer';
-addEventListener('pointerdown', () => { lastInput = 'pointer'; speech.unlocked = true; }, true);
-addEventListener('keydown', () => { lastInput = 'key'; speech.unlocked = true; }, true);
+let calmTimer = 0;
+// Resting: on the glasses, 15 s without a swipe or pinch rests the decoration (see style.css). The first input
+// wakes it straight away and is still handled as usual.
+function rest() { if (isGlasses()) document.documentElement.classList.add('resting'); }
+function wake() {
+  document.documentElement.classList.remove('resting');
+  clearTimeout(calmTimer);
+  if (!document.hidden && isGlasses()) calmTimer = setTimeout(rest, 15000);
+}
+addEventListener('pointerdown', () => { lastInput = 'pointer'; speech.unlocked = true; wake(); }, true);
+addEventListener('keydown', () => { lastInput = 'key'; speech.unlocked = true; wake(); }, true);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { wake(); return; }
+  clearTimeout(calmTimer);
+  clearTimeout(focusTimer);
+  speech.stop();
+  toastEl.hidden = true;
+});
 
 // ---- small pieces of markup -------------------------------------------------------------------------------
 const pic = (name, cls = '') => `<img class="pic ${cls}" src="${IMG(name)}" alt="" draggable="false">`;
@@ -335,12 +351,12 @@ function roomSvg(page, { fresh = -1 } = {}) {
     <line class="skirting" x1="0" y1="452" x2="1000" y2="452"/>
     <rect class="window" x="690" y="56" width="250" height="236" rx="10"/>
     <path class="mullion" d="M815 56 V292 M690 174 H940"/>
-    <image href="${IMG(sky === 'night' ? 'crescent_moon' : 'sun')}" x="722" y="80" width="78" height="78"/>
+    <image class="decor" href="${IMG(sky === 'night' ? 'crescent_moon' : 'sun')}" x="722" y="80" width="78" height="78"/>
     <rect class="sill" x="672" y="292" width="286" height="16" rx="6"/>
     <rect class="shelf" x="58" y="330" width="524" height="16" rx="6"/>
     <path class="bracket" d="M110 346 V372 M530 346 V372"/>
     <ellipse class="rug" cx="300" cy="604" rx="250" ry="30"/>
-    <image href="${IMG('couch_and_lamp')}" x="110" y="386" width="258" height="258"/>
+    <image class="decor" href="${IMG('couch_and_lamp')}" x="110" y="386" width="258" height="258"/>
     <rect class="table" x="620" y="474" width="300" height="18" rx="8"/>
     <path class="legs" d="M648 492 V620 M892 492 V620"/>`;
   const sparkle = (x, y, size) => `<image href="${IMG('sparkles')}" x="${x}" y="${y}" width="${size}" height="${size}"/>`;
@@ -1288,6 +1304,7 @@ addEventListener('resize', () => {
 importFromLink();
 if (!history.state || !history.state.route) history.replaceState({ route: 'home', depth: 0 }, '');
 render(history.state.route);
+wake();
 
 // Voices can arrive after the first screen. Redraw only if that changes whether there is a voice to offer.
 if (speech.ok) {

@@ -3,7 +3,7 @@
 // Keeps Gulzar usable on a weak connection. Page code is network-first (an update shows on the next
 // launch); pictures and fonts never change, so they come from the cache once fetched. Only this site's
 // own files are handled.
-const CACHE = 'gulzar-v3';
+const CACHE = 'gulzar-v4';
 const SHELL = ['./', 'index.html', 'style.css', 'content.js', 'app.js', 'icon.svg', 'icon-mono.svg', 'manifest.webmanifest', 'fonts/atkinson-latin.woff2'];
 
 self.addEventListener('install', (event) => {

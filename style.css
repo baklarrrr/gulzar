@@ -645,7 +645,21 @@ input:focus, textarea:focus { outline: none; border-color: var(--sun); }
 }
 
 /* ---- Meta Ray-Ban Display (600x600) --------------------------------------------------------------- */
-.mode-glasses { --rem: 15px; --r: 22px; }
+/* Light is battery on the glasses, and lit areas cover the world behind. The words and the pictures she uses
+   stay at full strength; the main button is a thick outline with yellow words (as readable as the filled one),
+   and the focus glow is smaller. After 15 s untouched ("resting") only decoration rests: the glow becomes a thin
+   ring, header pictures, sparkles, room furniture and the gear dim. Any swipe or pinch wakes it at once. */
+.mode-glasses { --rem: 15px; --r: 22px; --focus-ring: 0 0 0 4px var(--bg), 0 0 0 9px var(--sun), 0 0 14px 3px rgba(255, 216, 77, 0.35); }
+.mode-glasses .primary { background: transparent; color: var(--sun); box-shadow: inset 0 0 0 4px var(--sun); }
+.mode-glasses .primary:focus { box-shadow: inset 0 0 0 4px var(--sun), var(--focus-ring); }
+.mode-glasses .helper { background: transparent; }
+.resting.mode-glasses { --focus-ring: 0 0 0 3px var(--bg), 0 0 0 6px var(--sun); }
+.resting.mode-glasses .titlepic, .resting.mode-glasses .pics.lead, .resting.mode-glasses .spark, .resting.mode-glasses .gear,
+.resting.mode-glasses .roomsvg .decor { opacity: 0.5; transition: opacity 0.8s ease; }
+.resting.mode-glasses .roomsvg .window, .resting.mode-glasses .roomsvg .mullion, .resting.mode-glasses .roomsvg .sill,
+.resting.mode-glasses .roomsvg .shelf, .resting.mode-glasses .roomsvg .table, .resting.mode-glasses .roomsvg .legs,
+.resting.mode-glasses .roomsvg .bracket, .resting.mode-glasses .roomsvg .skirting, .resting.mode-glasses .roomsvg .rug,
+.resting.mode-glasses .roomsvg .frame { opacity: 0.5; transition: opacity 0.8s ease; }
 .mode-glasses .touch-only { display: none !important; }
 .mode-glasses .screen { padding: 16px 20px; gap: 10px; }
 .mode-glasses h1 { font-size: 1.95rem; }
