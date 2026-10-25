@@ -518,8 +518,9 @@ const SCREENS = {
   done(id) {
     const a = ACTIVITIES[id];
     const item = room[room.length - 1];
-    const praise = t('praise');
-    const line = Array.isArray(praise) ? praise[(room.length + 3) % praise.length] : '';
+    const seen = item && item.kind === 'draw' && !!drawingOf(item);
+    const praise = t(seen ? 'praiseSeen' : 'praiseDone');
+    const line = Array.isArray(praise) ? praise[room.length % praise.length] : '';
     const madeText = a ? L(a.doneText) : L({ en: 'You made a drawing.', ur: 'آپ نے تصویر بنائی۔' });
     let hero;
     let keepText;
@@ -553,7 +554,8 @@ const SCREENS = {
   room(pStr) {
     const n = room.length;
     const pages = roomPages(room);
-    const idx = pStr ? Math.min(Math.max((parseInt(pStr, 10) || 1) - 1, 0), pages.length - 1) : pages.length - 1;
+    const newest = Math.max(0, pages.findIndex((p) => ['draw', 'make', 'cook', 'day'].some((k) => p[k].some((it) => it.i === n - 1))));
+    const idx = pStr ? Math.min(Math.max((parseInt(pStr, 10) || 1) - 1, 0), pages.length - 1) : newest;
     const count = pages.length > 1 ? t('roomOf', { n: idx + 1, t: pages.length, all: n }) : n === 1 ? t('roomOne') : t('roomCount', { n });
     const fresh = history.state && history.state.fresh ? n - 1 : -1;
     // Only the way that leads somewhere is shown: Earlier room from the newest, Newer room from the first.
@@ -594,8 +596,9 @@ const SCREENS = {
       return `<li><button class="dayrow${on ? ' on' : ''}" data-act="dayTick" data-i="${i}" aria-pressed="${on}" data-say="${esc(d.text)}">${pic(d.img)}<span class="name">${esc(d.text)}</span><span class="tickmark" aria-hidden="true"></span></button></li>`;
     }).join('');
     const hint = all ? `${t('dayFinished')} ${t('plantNew')}` : `${t('dayHint')} ${t('dayGrow')}`;
+    const hintHtml = all ? esc(hint) : `${esc(t('dayHint'))} <span class="grow">${esc(t('dayGrow'))}</span>`;
     const html = `${topBar(t('day'), { sub: esc(fmtDate(new Date())), img: TILE_IMG.day })}
-      <div class="dayhead">${pic(dayStage(items), 'stage')}<p class="hint dayhint${all ? ' cheer' : ''}">${esc(hint)}</p></div>
+      <div class="dayhead">${pic(dayStage(items), 'stage')}<p class="hint dayhint${all ? ' cheer' : ''}">${hintHtml}</p></div>
       <ol class="daylist n${items.length}">${rows}</ol>
       <div class="bar">${homeBtn()}${all ? `<button class="primary big" data-act="go" data-to="room">${pic('couch_and_lamp')}<span>${esc(t('seeRoom'))}</span></button>` : ''}</div>`;
     return { html, say: `${t('day')}. ${all ? hint : items.filter((_, i) => !day.done.includes(i)).map((d) => d.text).join(', ')}`, focus: '.dayrow' };
@@ -693,8 +696,7 @@ function dayPreview() {
 function guideHtml(id, n) {
   const a = ACTIVITIES[id];
   const total = a.steps.length;
-  return `<span class="artbox">${art(id, n)}</span>
-    <p class="sub">${esc(t('stepOf', { n, t: total }))}</p>
+  return `<div class="guidehead"><span class="artbox">${art(id, n)}</span><p class="sub">${esc(t('stepOf', { n, t: total }))}</p></div>
     <p class="say">${esc(L(a.steps[n - 1]))}</p>
     <div class="padsteps">
       <button class="pill" data-act="padstep" data-n="${n - 1}" ${n === 1 ? 'disabled' : ''} aria-label="${esc(t('prev'))}"><span class="arrow back" aria-hidden="true"></span></button>
@@ -1031,7 +1033,9 @@ function finishDrawing(id, payload) {
   resetTo(`done:${act}`);
 }
 
-function toast(msg, ms = 6000) {
+addEventListener('pointerdown', () => { if (!toastEl.hidden && Date.now() - (toast.at || 0) > 300) toastEl.hidden = true; }, true);
+
+function toast(msg, ms = 5000) {
   toastEl.textContent = msg;
   toastEl.hidden = false;
   toast.at = Date.now();
@@ -1179,7 +1183,7 @@ screenEl.addEventListener('click', (e) => {
         b.classList.toggle('on', on);
         b.setAttribute('aria-pressed', on);
         const hint = screenEl.querySelector('.dayhint');
-        if (hint) { hint.textContent = `${t('dayHint')} ${t('dayGrow')}`; hint.classList.remove('cheer'); }
+        if (hint) { hint.innerHTML = `${esc(t('dayHint'))} <span class="grow">${esc(t('dayGrow'))}</span>`; hint.classList.remove('cheer'); }
         const stage = screenEl.querySelector('.dayhead .stage');
         if (stage) stage.src = IMG(dayStage(items));
         const bar = screenEl.querySelector('.bar .primary');

@@ -223,7 +223,7 @@ button[disabled] { opacity: 0.3; cursor: default; }
 }
 .daystrip .pic { width: 3.6rem; height: 3.6rem; flex: none; }
 .daystrip .label { font-size: 1.7rem; font-weight: 800; white-space: nowrap; }
-.pips { display: inline-flex; gap: 0.45rem; margin-inline-start: auto; }
+.pips { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; min-width: 0; gap: 0.45rem; margin-inline-start: auto; }
 .pips i { width: 1.05rem; height: 1.05rem; border-radius: 50%; border: 3px solid var(--day); }
 .pips i.on { background: var(--day); }
 .daystrip .count { margin-inline-start: auto; font-size: 1.3rem; color: var(--soft); font-weight: 700; text-align: end; }
@@ -255,6 +255,23 @@ button[disabled] { opacity: 0.3; cursor: default; }
 .size-xl:not(.mode-glasses) .needgrid { grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); }
 .size-xl:not(.mode-glasses) .need .pic { width: 3.8rem; height: 3.8rem; }
 .size-xl:not(.mode-glasses) .calm { display: none; }
+.size-xl:not(.mode-glasses) .dayrow { min-height: 4.4rem; font-size: 1.45rem; padding-block: 0.3rem; }
+.size-xl:not(.mode-glasses) .dayrow .pic { width: 3.3rem; height: 3.3rem; }
+.size-xl:not(.mode-glasses) .dayrow .tickmark { inset-inline-start: 2.6rem; width: 1.8rem; height: 1.8rem; }
+.size-xl .dayhint .grow { display: none; }
+.size-xl:not(.mode-glasses) .dayhead .stage { width: 3.4rem; height: 3.4rem; }
+.size-xl:not(.mode-glasses) .dayhint { font-size: 1.2rem; }
+.size-xl:not(.mode-glasses) .need { padding: 0.45rem 0.35rem 0.55rem; font-size: 1.05rem; gap: 0.2rem; }
+.size-xl:not(.mode-glasses) .needgrid { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.6rem; }
+.size-xl:not(.mode-glasses) .need .pic { width: 3.1rem; height: 3.1rem; }
+.size-xl:not(.mode-glasses) .intro .hint { display: none; }
+html[lang="ur"].size-xl .need { line-height: 1.45; }
+html[lang="ur"].size-xl .needs h2 { margin-bottom: 0.3rem; font-size: 1.45rem; }
+html[lang="ur"].size-xl .need .pic { width: 2.6rem; height: 2.6rem; }
+html[lang="ur"].size-xl:not(.mode-glasses) .dayrow { font-size: 1.3rem; line-height: 1.45; }
+html[lang="ur"].mode-glasses.size-xl .need { font-size: 1.2rem; padding-block: 0.25rem; }
+html[lang="ur"].mode-glasses.size-xl .need .pic { width: 2.2rem; height: 2.2rem; }
+html[lang="ur"].mode-glasses.size-xl .needs h2 { font-size: 1.3rem; margin-bottom: 2px; }
 .size-xl:not(.mode-glasses) .keepsake { width: 10rem; height: 10rem; }
 .size-xl:not(.mode-glasses) .pics.keepsakes .pic { width: 6rem; height: 6rem; }
 .size-xl:not(.mode-glasses) .drawn { width: 14rem; height: 9rem; }
@@ -284,8 +301,9 @@ html[lang="ur"].size-xl .donebox { gap: 0.3rem; }
 .cardtext { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
 .card .name { font-size: 1.8rem; font-weight: 800; line-height: 1.12; }
 .card .meta { font-size: 1.2rem; color: var(--soft); font-weight: 600; }
-.card .pics .pic { width: 5.4rem; height: 5.4rem; }
-.card .pics.n3 .pic { width: 4.2rem; height: 4.2rem; }
+.card .pics { max-width: 100%; }
+.card .pics .pic { width: 5.4rem; height: auto; aspect-ratio: 1; flex: 0 1 auto; min-width: 0; }
+.card .pics.n3 .pic { width: 4.2rem; }
 html[lang="ur"] .card .name { line-height: 1.6; }
 
 .pics { display: inline-flex; align-items: center; justify-content: center; flex: none; }
@@ -326,7 +344,7 @@ html[lang="ur"] .card .name { line-height: 1.6; }
 }
 html[lang="ur"] .need { line-height: 1.7; }
 html[lang="ur"] .daystrip { padding-block: 0.6rem; line-height: 1.6; }
-html[lang="ur"] .dayrow { padding-block: 0.6rem; }
+html[lang="ur"] .dayrow { padding-block: 0.45rem; line-height: 1.55; }
 html[lang="ur"] .helper { padding-block: 0.3rem; }
 .need .pic { width: 4.6rem; height: 4.6rem; }
 .need.got { border-color: var(--room); background: var(--room-t); }
@@ -456,6 +474,7 @@ html[lang="ur"] .say { line-height: 1.9; }
 /* ---- my day --------------------------------------------------------------------------------------------- */
 .dayhead { display: flex; align-items: center; gap: 1rem; flex: none; }
 .dayhead .stage { width: 4.6rem; height: 4.6rem; flex: none; }
+.dayhead .dayhint { flex: 1 1 auto; min-width: 0; }
 .dayhint { margin-top: 0; font-size: 1.35rem; flex: none; }
 .dayhint.cheer { color: var(--sun); font-size: 1.6rem; font-weight: 800; }
 .theme-light .dayhint.cheer { color: var(--room); }
@@ -467,26 +486,35 @@ html[lang="ur"] .say { line-height: 1.9; }
   gap: 1rem;
   width: 100%;
   min-height: 5.8rem;
-  padding: 0.5rem 4rem 0.5rem 0.8rem;
+  padding: 0.5rem 0.9rem 0.5rem 0.8rem;
   border-radius: 22px;
   border: 3px solid var(--line);
   font-size: 1.6rem;
   font-weight: 800;
   text-align: start;
 }
-[dir="rtl"] .dayrow { padding: 0.5rem 0.8rem 0.5rem 4rem; }
 .dayrow .pic { width: 4.3rem; height: 4.3rem; flex: none; }
-.dayrow .tickmark { top: 50%; transform: translateY(-50%); width: 2.5rem; height: 2.5rem; inset-inline-end: 1rem; }
+.dayrow .name { flex: 1 1 auto; min-width: 0; }
+.dayrow .tickmark { position: absolute; top: auto; bottom: 0.3rem; inset-inline-start: 3.5rem; width: 2.1rem; height: 2.1rem; background-color: var(--bg); }
+.dayrow.on .tickmark { background-color: var(--room); }
 .dayrow.on { border-color: var(--room); background: var(--room-t); }
+@media (min-width: 900px) and (orientation: landscape) {
+  .daylist { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 
 /* ---- drawing pad ---------------------------------------------------------------------------------------- */
 .screen[data-screen="canvas"] { padding: 0.8rem; gap: 0.8rem; }
 .padhint { flex: none; text-align: center; font-size: 1.5rem; font-weight: 700; color: var(--soft); }
 .padarea { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(17rem, 0.42fr) minmax(0, 1fr); gap: 0.8rem; }
 .padarea.free { grid-template-columns: minmax(0, 1fr); }
-.padguide { min-height: 0; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.5rem; padding: 0.9rem; border-radius: 22px; border: 3px solid var(--draw); background: var(--draw-t); text-align: center; }
+.padguide { min-height: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.5rem; padding: 0.9rem; border-radius: 22px; border: 3px solid var(--draw); background: var(--draw-t); text-align: center; }
+.guidehead { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; flex: none; }
 .padguide .artbox { width: 8.5rem; height: 8.5rem; flex: none; }
-.padguide .say { font-size: 1.6rem; }
+.padguide .say { font-size: 1.6rem; flex: 1 1 auto; min-height: 0; overflow: auto; }
+.padsteps { flex: none; }
+.size-xl .padguide .artbox { width: 6rem; height: 6rem; }
+.size-xl .padguide .say { font-size: 1.35rem; }
+html[lang="ur"] .padguide .say { line-height: 1.7; }
 .padsteps { display: flex; flex-wrap: nowrap; justify-content: center; gap: 0.5rem; margin-top: auto; }
 .padsteps .pill { min-height: 3.8rem; padding: 0 1rem; }
 .padsteps .read { min-height: 3.8rem; }
@@ -540,10 +568,9 @@ input:focus, textarea:focus { outline: none; border-color: var(--sun); }
 /* Notices appear at the top, so they never cover the main button at the bottom. */
 .toast {
   position: fixed;
-  inset-inline: 1rem;
+  inset-inline-start: 1rem;
   top: 1rem;
-  margin: 0 auto;
-  max-width: 40rem;
+  max-width: min(36rem, calc(100vw - 13rem));
   padding: 1rem 1.4rem;
   border-radius: 18px;
   background: var(--toastbg);
@@ -563,14 +590,19 @@ input:focus, textarea:focus { outline: none; border-color: var(--sun); }
   .stepart { flex: 1 1 auto; align-self: stretch; min-height: 4.5rem; max-height: 36vh; }
   .steptext { flex: none; }
   .padarea { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .padguide { flex-direction: row; flex-wrap: wrap; justify-content: center; text-align: start; max-height: 34vh; }
-  .padguide .artbox { width: 7rem; height: 7rem; }
-  .padguide .say { font-size: 1.5rem; flex: 1 1 12rem; }
-  .padsteps { margin-top: 0; }
-  .cards { grid-template-columns: 1fr; grid-auto-rows: auto; align-content: start; }
+  .padguide { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; align-items: center; text-align: start; max-height: 30vh; padding: 0.6rem 0.8rem; column-gap: 0.8rem; }
+  .guidehead { grid-row: 1 / span 2; }
+  .padguide .artbox { width: 5.5rem; height: 5.5rem; }
+  .padguide .say { font-size: 1.4rem; max-height: 100%; }
+  .padsteps { margin-top: 0; justify-content: flex-start; }
+  .cards { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; align-content: start; }
+  .card { min-width: 0; }
   .cards.n4, .cards.n5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cards:not(.n4):not(.n5) .card { flex-direction: row; justify-content: flex-start; text-align: start; padding: 1rem 1.4rem; }
   .daylist { grid-template-columns: 1fr; }
+}
+@media (orientation: portrait) and (min-width: 700px) {
+  .daylist { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 699px) {
   :root { --rem: 15px; }
@@ -583,6 +615,8 @@ input:focus, textarea:focus { outline: none; border-color: var(--sun); }
   .sub, .card .meta, .hint, .tt .meta, .roomline, .calm { font-size: 1.6rem; }
   .bar .pill .lbl { display: none; }
   .need { font-size: 1.6rem; }
+  .card .pics .pic, .card .pics.n3 .pic { width: 3.4rem; }
+  .tile { flex-direction: column; justify-content: center; text-align: center; gap: 0.5rem; padding: 0.8rem 0.5rem; }
   .swatch { width: 3.4rem; height: 3.4rem; }
   .howdraw { font-size: 1.6rem; }
   .pics.lead { display: none; }
@@ -594,6 +628,20 @@ input:focus, textarea:focus { outline: none; border-color: var(--sun); }
   .daystrip .count { margin-inline-start: auto; }
   .setrow { grid-template-columns: 1fr; }
   .things { grid-template-columns: 1fr; }
+}
+
+@media (max-height: 520px) {
+  .screen { height: auto; min-height: 100vh; min-height: 100dvh; overflow: visible; }
+  .tiles, .cards, .intro, .stepbody, .donebox, .things, .daylist, .settings, .choices { flex: none; overflow: visible; }
+  .tiles { grid-auto-rows: minmax(7.5rem, auto); }
+  .stepart { max-height: none; min-height: 9rem; }
+  .roombox { flex: none; height: 75vh; }
+  .padarea { flex: none; height: 85vh; }
+  .bar { position: sticky; bottom: 0; z-index: 3; background: var(--bg); padding-block: 0.5rem; flex-wrap: nowrap; }
+  .bar .primary { min-height: 56px; font-size: 22px; padding: 0 20px; }
+  .bar .pill { min-height: 52px; font-size: 18px; padding: 0 14px; }
+  .bar .pill .lbl, .bar .primary .pic { display: none; }
+  .bar .pill .pic { width: 30px; height: 30px; }
 }
 
 /* ---- Meta Ray-Ban Display (600x600) --------------------------------------------------------------- */
@@ -616,7 +664,13 @@ input:focus, textarea:focus { outline: none; border-color: var(--sun); }
 .mode-glasses .tile, .mode-glasses .card, .mode-glasses .daystrip, .mode-glasses .need.got, .mode-glasses .dayrow.on { background: transparent; }
 .mode-glasses .card .meta { display: none; }
 .mode-glasses .sub, .mode-glasses .roomline, .mode-glasses .dayhint { font-size: 1.6rem; }
-.mode-glasses .dayhead .stage { width: 3.4rem; height: 3.4rem; }
+.mode-glasses .dayhead .stage { width: 2.6rem; height: 2.6rem; }
+.mode-glasses.size-xl .dayrow { min-height: 2.9rem; font-size: 1.3rem; padding-block: 0.1rem; }
+.mode-glasses.size-xl .dayrow .pic { width: 2.5rem; height: 2.5rem; }
+html[lang="ur"].mode-glasses .dayrow { line-height: 1.35; padding-block: 0.15rem; }
+html[lang="ur"].mode-glasses .need { line-height: 1.3; }
+.mode-glasses.size-xl .need { font-size: 1.35rem; }
+.mode-glasses.size-xl .need .pic { width: 2.6rem; height: 2.6rem; }
 .mode-glasses .tiles { grid-auto-rows: minmax(0, 1fr); gap: 10px; }
 .mode-glasses .tile { flex-direction: column; justify-content: center; text-align: center; gap: 0.35rem; padding: 0.5rem; font-size: 1.9rem; }
 .mode-glasses .tile .pic { width: 5.4rem; height: 5.4rem; filter: none; }
@@ -632,7 +686,7 @@ input:focus, textarea:focus { outline: none; border-color: var(--sun); }
 .mode-glasses .pics.lead .pic { width: 2.9rem; height: 2.9rem; }
 .mode-glasses .artbox.lead { width: 3rem; height: 3rem; }
 .mode-glasses .needs h2 { font-size: 1.45rem; margin-bottom: 6px; }
-.mode-glasses .needgrid { flex: 1; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 8px; align-content: stretch; max-height: 22rem; }
+.mode-glasses .needgrid { flex: 1; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 8px; align-content: stretch; }
 .mode-glasses .need { justify-content: center; padding: 0.4rem 0.25rem 0.45rem; font-size: 1.6rem; gap: 0.25rem; line-height: 1.05; }
 .mode-glasses .need .pic { width: 3.2rem; height: 3.2rem; }
 .mode-glasses .need .tickmark { width: 1.4rem; height: 1.4rem; top: 0.3rem; inset-inline-end: 0.3rem; }
@@ -680,10 +734,11 @@ html[lang="ur"].mode-glasses .stepbody { gap: 16px; }
 .mode-glasses.size-xl .pics.step .pic { width: 6rem; }
 .mode-glasses .dayrow { min-height: 3.9rem; font-size: 1.45rem; padding-block: 0.2rem; }
 .mode-glasses .dayrow .pic { width: 3rem; height: 3rem; }
-.mode-glasses .dayrow .tickmark { width: 2rem; height: 2rem; }
+.mode-glasses .dayrow .tickmark { width: 1.6rem; height: 1.6rem; inset-inline-start: 2.4rem; bottom: 0.15rem; }
+.mode-glasses .dayhead:not(:has(.cheer)) { display: none; }
 .mode-glasses .settings { gap: 10px; }
 .mode-glasses .setrow { grid-template-columns: 1fr; gap: 4px; }
-.mode-glasses .toast { font-size: 1.4rem; top: 10px; inset-inline: 14px; }
+.mode-glasses .toast { font-size: 1.4rem; top: 10px; inset-inline-start: 14px; max-width: calc(100vw - 110px); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
