@@ -158,7 +158,7 @@ const speech = {
     if (!this.ok) return null;
     const voices = speechSynthesis.getVoices() || [];
     const list = voices.filter((v) => (v.lang || '').toLowerCase().replace('_', '-').startsWith(lang));
-    return list.find((v) => v.localService) || list[0] || null;
+    return list.find((v) => v.default) || list.find((v) => v.localService) || list[0] || null;
   },
 
   // English always gets a try (the glasses have one en-US voice); Urdu only when the device has an Urdu voice.
