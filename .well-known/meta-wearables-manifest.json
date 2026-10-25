@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "name": "Gulzar",
+  "description": "Cook, make and draw, one step at a time, with big pictures and a voice.",
+  "appearance": {
+    "theme_color": "#FF9DBA",
+    "icon_background": {
+      "colors": ["#7A3350", "#1A0910"],
+      "stops": [0.0, 1.0],
+      "inner_glow_color": "#FFD1E0"
+    },
+    "icon": {
+      "src": "../icon-mono.svg",
+      "type": "monochrome"
+    }
+  }
+}
