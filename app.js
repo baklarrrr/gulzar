@@ -261,7 +261,7 @@ const ART = {
     colour: `<rect x="48" y="92" width="104" height="88" fill="#FFD9A8" stroke="#E8A050"/><path d="M38 94 L100 40 L162 94 Z" fill="#FF7A6B" stroke="#E0503F"/><g fill="#C08850" stroke="#8A5A2B">${DOOR}</g><g fill="#9FD8FF" stroke="#4DA8FF">${WINDOWS}</g><g fill="#FF8FB6" stroke="#3FB560">${HOUSE_FLOWERS}</g>`,
   },
   mehndi: {
-    parts: ['<circle class="dot" cx="100" cy="100" r="5"/>', '<circle cx="100" cy="100" r="16"/>', SMALL_PETALS, BIG_PETALS, TIP_DOTS],
+    parts: ['<circle class="dot" cx="100" cy="100" r="8"/>', '<circle cx="100" cy="100" r="16"/>', SMALL_PETALS, BIG_PETALS, TIP_DOTS],
     henna: true,
   },
 };
@@ -1051,7 +1051,7 @@ function finishDrawing(id, payload) {
 
 addEventListener('pointerdown', () => { if (!toastEl.hidden && Date.now() - (toast.at || 0) > 300) toastEl.hidden = true; }, true);
 
-function toast(msg, ms = 5000) {
+function toast(msg, ms = 4000) {
   toastEl.textContent = msg;
   toastEl.hidden = false;
   toast.at = Date.now();
