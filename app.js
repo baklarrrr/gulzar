@@ -533,11 +533,11 @@ const SCREENS = {
     const cards = ids.map((id) => {
       const a = ACTIVITIES[id];
       const helpers = a.steps.filter((s) => s.helper).length;
-      const meta = kind === 'draw' ? t('traceMeta')
+      const meta = kind === 'draw' ? ''
         : `${t('nSteps', { n: a.steps.length })}${helpers ? ` · ${helperText(t('withHelper', { h: helpers }))}` : ''}`;
       const picture = kind === 'draw' ? `<span class="artbox">${art(id, 0)}</span>` : pics(a.hero);
       const open = kind === 'draw' ? `data-act="draw" data-id="${id}"` : `data-act="go" data-to="intro:${id}"`;
-      return `<button class="card k-${kind}" ${open} data-say="${esc(L(a.name))}">${picture}<span class="cardtext"><span class="name">${esc(L(a.name))}</span><span class="meta">${esc(meta)}</span></span></button>`;
+      return `<button class="card k-${kind}" ${open} data-say="${esc(L(a.name))}">${picture}<span class="cardtext"><span class="name">${esc(L(a.name))}</span>${meta ? `<span class="meta">${esc(meta)}</span>` : ''}</span></button>`;
     });
     if (kind === 'draw') {
       cards.push(`<button class="card k-draw" data-act="draw" data-id="free" data-say="${esc(t('free'))}">${pics(['paintbrush'])}<span class="cardtext"><span class="name">${esc(t('free'))}</span><span class="meta">${esc(t('freeHint'))}</span></span></button>`);
@@ -1108,19 +1108,20 @@ function drawPageHtml() {
   const tipsBtn = a ? `<button class="pill tips" data-act="tips" data-say="${esc(tipLabel)}">${esc(tipLabel)}</button>` : '';
   const modeBtn = a ? `<button class="pill mode" data-act="mode">${pic(paper ? 'paintbrush' : 'page_facing_up')}<span class="long">${esc(paper ? t('onScreenBtn') : t('onPaperBtn'))}</span><span class="short">${esc(paper ? t('screenShort') : t('paperShort'))}</span></button>` : '';
   const tipBox = a && tip ? `<div class="tipbox">
-      <p class="tipof">${esc(t('stepOf', { n: tip, t: total }))}</p>
-      <p class="say">${esc(L(a.steps[tip - 1]))}</p>
+      <div class="tiptext"><p class="tipof">${esc(t('stepOf', { n: tip, t: total }))}</p><p class="say">${esc(L(a.steps[tip - 1]))}</p></div>
       <div class="tipnav touch-only">
         <button class="pill" data-act="tipPrev"${tip === 1 ? ' disabled' : ''} aria-label="${esc(t('prevStep'))}"><span class="arrow back" aria-hidden="true"></span></button>
-        ${tip < total ? `<button class="pill" data-act="tips"><span>${esc(t('nextStep'))}</span><span class="arrow" aria-hidden="true"></span></button>` : ''}
-        <button class="pill" data-act="tipHide">${esc(t('hideSteps'))}</button>
+        ${tip < total ? `<button class="pill" data-act="tips" aria-label="${esc(t('nextStep'))}"><span class="long">${esc(t('nextStep'))}</span><span class="short">${esc(t('nextShort'))}</span><span class="arrow" aria-hidden="true"></span></button>` : ''}
+        <button class="pill" data-act="tipHide"><span class="long">${esc(t('hideSteps'))}</span><span class="short">${esc(t('hideShort'))}</span></button>
       </div>
     </div>` : '';
-  const dotsBtn = paper ? '' : `<button class="pill dots" data-act="dots" aria-pressed="${settings.guide}">${esc(t(settings.guide ? 'dotsHide' : 'dotsShow'))}</button>`;
   const swatches = (where) => `<div class="swatches ${where}">${PAD_COLOURS.map((c, i) => `<button class="swatch${i === pad.colour ? ' on' : ''}" data-act="colour" data-i="${i}" style="--c:${c.css}" aria-label="${esc(L(c))}" aria-pressed="${i === pad.colour}"></button>`).join('')}</div>`;
   // Beside the canvas on a wide screen (above it on a tall one): the picture, the colours, and the help.
-  const side = a ? `<div class="drawside"><span class="artbox target">${art(id, 0)}</span>${tipBox}${paper || glasses ? '' : `${swatches('inside')}<div class="sidebtns">${tip ? '' : tipsBtn}${dotsBtn}</div>`}</div>` : '';
+  // Beside the canvas on a wide screen, above it on a tall one: the picture, the colours, Show me how (while the
+  // steps are closed) and, on a phone, Paper / Screen.
+  const side = glasses ? '' : `<div class="drawside">${a ? `<span class="artbox target">${art(id, 0)}</span>` : ''}${paper ? '' : swatches('inside')}<div class="sidebtns">${tip ? '' : tipsBtn}${modeBtn}</div></div>`;
   const hint = glasses ? t('drawHintGlasses') : a && settings.guide ? t('traceHint') : a ? t('drawHint') : t('freeHint');
+  // (The dots can be switched off in helper settings.)
   const surface = paper
     ? `<span class="artbox paperart">${art(id, tip)}</span><p class="paperneed">${pics(['page_facing_up', 'crayon'])}<span>${esc(t('paperNeed'))}</span></p>`
     : `${a && settings.guide ? guideSvg(id, tip) : ''}<canvas id="pad" tabindex="0" aria-label="${esc(name)}"></canvas>
@@ -1128,10 +1129,11 @@ function drawPageHtml() {
        <p class="emptyhint" id="emptyhint">${esc(hint)}</p>`;
   const colours = glasses
     ? `<button class="pill colourbtn" data-act="colourNext" style="--c:${PAD_COLOURS[pad.colour].css}"><span class="cdot" aria-hidden="true"></span><span>${esc(t('colour'))}</span></button>`
-    : swatches(a ? 'inbar' : 'inbar always');
+    : swatches('inbar');
+  const barTips = glasses || !tip ? tipsBtn : '';
   const tools = paper
-    ? `${glasses ? tipsBtn : ''}${homeBtn(false)}<button class="pill touch-only" data-act="photo" data-id="${id}">${pic('camera_with_flash')}<span>${esc(t('takePhoto'))}</span></button>`
-    : `${colours}<button class="pill" data-act="undo">${esc(t('undo'))}</button><button class="pill" data-act="wipe">${esc(t('again'))}</button>${glasses ? tipsBtn : ''}${homeBtn(false)}`;
+    ? `${barTips}${homeBtn(false)}<button class="pill touch-only" data-act="photo" data-id="${id}">${pic('camera_with_flash')}<span>${esc(t('takePhoto'))}</span></button>`
+    : `${colours}<button class="pill" data-act="undo">${esc(t('undo'))}</button><button class="pill" data-act="wipe">${esc(t('again'))}</button>${barTips}${homeBtn(false)}`;
   const done = `<button class="primary big" data-act="${paper ? 'paperdone' : 'savedrawing'}" data-id="${esc(a ? id : 'free')}"${paper ? '' : ' disabled'}>${esc(t('done'))}<span class="check" aria-hidden="true"></span></button>`;
   return `<header class="top drawtop">
       <div class="titles">${a ? `<span class="artbox lead">${art(id, 0)}</span>` : ''}<div><h1 tabindex="-1">${esc(name)}</h1></div></div>
@@ -1139,9 +1141,10 @@ function drawPageHtml() {
     </header>
     <div class="drawmain${paper ? ' paper' : ''}${a ? '' : ' free'}${tip ? ' tipping' : ''}">
       ${side}
+      ${tipBox}
       <div class="canvasbox" id="canvasbox">${surface}${settings.dragCheck ? '<p class="dragcheck" id="dragcheck"></p>' : ''}</div>
     </div>
-    <div class="bar drawbar">${tools}<span class="spacer"></span>${done}</div>`;
+    <div class="bar drawbar">${tools}${done}</div>`;
 }
 
 function drawSay() {
@@ -1619,11 +1622,6 @@ screenEl.addEventListener('click', (e) => {
     case 'tipHide':
       drawState.tip = 0;
       renderDraw({ focus: '[data-act="tips"]' });
-      break;
-    case 'dots':
-      settings.guide = !settings.guide;
-      saveSettings();
-      renderDraw({ focus: '[data-act="dots"]' });
       break;
     case 'mode':
       drawState.paper = !drawState.paper;
