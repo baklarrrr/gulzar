@@ -1,19 +1,27 @@
 'use strict';
 
-// Gulzar: cook, make and draw one step at a time, with big pictures and a voice, and a room that fills up
-// with keepsakes as things get finished. Runs on a tablet or phone (touch) and on Meta Ray-Ban Display
-// (600x600: swipes move focus between buttons, a pinch presses, Back is the system gesture).
-// Everything is kept on the device in localStorage. Nothing is sent anywhere.
+// Gulzar: cook and make one step at a time, draw with your own hand, with big pictures and a voice, and a
+// room that fills up with keepsakes as things get finished. Runs on a tablet or phone (touch) and on Meta
+// Ray-Ban Display (600x600: swipes move focus between buttons, a pinch presses, Back is the system gesture;
+// on the drawing page, pinch-and-drag draws). This file runs both index.html and draw.html.
+// Everything is kept on the device (localStorage, and sessionStorage for a drawing in progress). Nothing is
+// sent anywhere.
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const screenEl = document.getElementById('screen');
 const toastEl = document.getElementById('toast');
 const IMG = (name) => `img/${name}.webp`;
 
+// Drawing has its own page, draw.html. Its first stylesheet turns on pinch-and-drag for the glasses
+// (body { touch-action: none }, which the glasses read once, when a page loads), so the rest of the app keeps the
+// glasses' usual swipe and pinch.
+const DRAW_PAGE = document.body.classList.contains('drawpage');
+
 // ---- saved state ------------------------------------------------------------------------------------------
 const DEFAULTS = {
   name: '', helperName: '', lang: 'en', greet: 'time', voice: true, autoRead: true, rate: 'normal', size: 'large',
   theme: 'dark', show: { cook: true, make: true, draw: true, day: true }, hide: [], dayItems: null,
+  guide: true, vibrate: true, dragCheck: false,
 };
 
 function load(key, fallback) {
@@ -51,6 +59,7 @@ function sanitizeSettings(s) {
   if (s.greet === 'time' || s.greet === 'salaam') out.greet = s.greet;
   if (typeof s.voice === 'boolean') out.voice = s.voice;
   if (typeof s.autoRead === 'boolean') out.autoRead = s.autoRead;
+  for (const k of ['guide', 'vibrate', 'dragCheck']) if (typeof s[k] === 'boolean') out[k] = s[k];
   if (s.rate === 'slow' || s.rate === 'normal') out.rate = s.rate;
   if (s.size === 'large' || s.size === 'xl') out.size = s.size;
   if (s.theme === 'dark' || s.theme === 'light') out.theme = s.theme;
@@ -192,6 +201,17 @@ const speech = {
 // With no voice for the chosen language there is no Read button at all, rather than one that does nothing.
 const canVoice = () => settings.voice && speech.canSpeak(settings.lang);
 
+// Touch as a sense: short, quiet pulses where the browser allows them (Android Chrome), after the first touch.
+// iPad and iPhone have no vibration for web pages, and the glasses have none for web apps, so nothing is
+// faked there.
+const canBuzz = () => typeof navigator.vibrate === 'function' && !isGlasses();
+const PULSES = { press: 8, stroke: 6, step: 14, finish: [18, 70, 26] };
+function buzz(kind) {
+  if (!settings.vibrate || !canBuzz()) return;
+  if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
+  try { navigator.vibrate(PULSES[kind] || PULSES.press); } catch (e) { /* not allowed here */ }
+}
+
 let lastInput = 'pointer';
 let calmTimer = 0;
 // Resting: on the glasses, 15 s without a swipe or pinch rests the decoration (see style.css). The first input
@@ -210,6 +230,55 @@ document.addEventListener('visibilitychange', () => {
   clearTimeout(focusTimer);
   speech.stop();
   toastEl.hidden = true;
+});
+
+// Drag check (helper-only): whether pinch-and-drag reaches this page on the real glasses, readable without a
+// debugger. It shows the page's touch-action, pointer events by kind, moves in the last second, the pointer
+// type, the last position against the area's size, and arrow keys (swipes) and Enter (pinches).
+const drag = { down: 0, move: 0, up: 0, cancel: 0, arrows: 0, enter: 0, type: '-', x: 0, y: 0, moves: [], area: null, timer: 0 };
+function dragTrack(e) {
+  if (!settings.dragCheck) return;
+  const kind = { pointerdown: 'down', pointermove: 'move', pointerup: 'up', pointercancel: 'cancel' }[e.type];
+  drag[kind] += 1;
+  drag.type = e.pointerType || '?';
+  const box = drag.area && drag.area.getBoundingClientRect();
+  if (box) { drag.x = Math.round(e.clientX - box.left); drag.y = Math.round(e.clientY - box.top); }
+  if (kind === 'move') drag.moves.push(performance.now());
+  dragShow();
+}
+['pointerdown', 'pointermove', 'pointerup', 'pointercancel'].forEach((type) => addEventListener(type, dragTrack, true));
+addEventListener('keydown', (e) => {
+  if (!settings.dragCheck) return;
+  if (e.key === 'Enter') drag.enter += 1;
+  else if (e.key.startsWith('Arrow')) drag.arrows += 1;
+  dragShow();
+}, true);
+function dragShow() {
+  const el = document.getElementById('dragcheck');
+  if (!el) return;
+  const now = performance.now();
+  drag.moves = drag.moves.filter((at) => now - at < 1000);
+  const box = drag.area && drag.area.getBoundingClientRect();
+  const size = box ? `${Math.round(box.width)}×${Math.round(box.height)}` : '-';
+  el.textContent = `touch-action: ${getComputedStyle(document.body).touchAction} · down ${drag.down} · move ${drag.move} · up ${drag.up}`
+    + ` · cancel ${drag.cancel} · ${drag.moves.length}/s · ${drag.type} · at ${drag.x},${drag.y} in ${size} · arrows ${drag.arrows} · Enter ${drag.enter}`;
+  clearTimeout(drag.timer);
+  drag.timer = setTimeout(dragShow, 1000); // lets the moves-per-second figure fall back to 0
+}
+
+// Swiping past the end of a row gives a small springy nudge, so a swipe is never met with nothing.
+addEventListener('keydown', (e) => {
+  if (!e.key.startsWith('Arrow') || e.defaultPrevented) return;
+  const before = document.activeElement;
+  setTimeout(() => {
+    const el = document.activeElement;
+    if (el !== before || !el || !screenEl.contains(el) || el.id === 'pad') return;
+    const dir = e.key.slice(5).toLowerCase();
+    el.classList.remove('nudge-up', 'nudge-down', 'nudge-left', 'nudge-right');
+    void el.offsetWidth;
+    el.classList.add(`nudge-${dir}`);
+    setTimeout(() => el.classList.remove(`nudge-${dir}`), 320);
+  }, 0);
 });
 
 // ---- small pieces of markup -------------------------------------------------------------------------------
@@ -281,6 +350,16 @@ function art(id, upto = 0) {
   return `<svg class="art" viewBox="0 0 200 200" aria-hidden="true">${body}</svg>`;
 }
 
+// The tracing guide on the drawing page: the whole picture as dots to trace or ignore. When a step is shown,
+// its part is drawn in the highlight colour.
+function guideSvg(id, tip = 0) {
+  const a = ART[id];
+  if (!a) return '';
+  const order = a.order || a.parts.map((_, i) => i);
+  const groups = order.map((i) => `<g class="${i === tip - 1 ? 'now' : ''}">${a.parts[i]}</g>`).join('');
+  return `<svg class="guide" viewBox="-12 -12 224 224" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${groups}</svg>`;
+}
+
 // ---- the room ---------------------------------------------------------------------------------------------
 // Each room has fixed places: three frames, four shelf spots, three on the table, three plants. When a kind of
 // place is full, a new room starts, so nothing ever leaves; the newest room shows first.
@@ -345,8 +424,15 @@ function roomPages(items) {
 function roomSvg(page, { fresh = -1 } = {}) {
   const sky = timeIcon() === 'crescent_moon' ? 'night' : 'day';
   let s = `<svg class="roomsvg sky-${sky}" viewBox="0 0 1000 640" role="img" aria-label="${esc(t('room'))}">
+    <defs>
+      <radialGradient id="lampglow"><stop offset="0" stop-color="#ffd27a" stop-opacity="0.3"/><stop offset="1" stop-color="#ffd27a" stop-opacity="0"/></radialGradient>
+      <linearGradient id="walltone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0.22"/><stop offset="0.7" stop-color="#000" stop-opacity="0"/></linearGradient>
+    </defs>
     <rect class="wall" x="0" y="0" width="1000" height="452"/>
+    <rect class="walltone" x="0" y="0" width="1000" height="452" fill="url(#walltone)"/>
+    <line class="rail" x1="0" y1="34" x2="1000" y2="34"/>
     <rect class="floor" x="0" y="452" width="1000" height="188"/>
+    <path class="sunpatch" d="M700 452 H930 L1000 640 H646 Z"/>
     <path class="boards" d="M0 512 H1000 M0 578 H1000"/>
     <line class="skirting" x1="0" y1="452" x2="1000" y2="452"/>
     <rect class="window" x="690" y="56" width="250" height="236" rx="10"/>
@@ -356,6 +442,7 @@ function roomSvg(page, { fresh = -1 } = {}) {
     <rect class="shelf" x="58" y="330" width="524" height="16" rx="6"/>
     <path class="bracket" d="M110 346 V372 M530 346 V372"/>
     <ellipse class="rug" cx="300" cy="604" rx="250" ry="30"/>
+    <circle class="lampglow" cx="291" cy="455" r="165" fill="url(#lampglow)"/>
     <image class="decor" href="${IMG('couch_and_lamp')}" x="110" y="386" width="258" height="258"/>
     <rect class="table" x="620" y="474" width="300" height="18" rx="8"/>
     <path class="legs" d="M648 492 V620 M892 492 V620"/>`;
@@ -446,13 +533,14 @@ const SCREENS = {
     const cards = ids.map((id) => {
       const a = ACTIVITIES[id];
       const helpers = a.steps.filter((s) => s.helper).length;
-      const meta = kind === 'draw' ? t('nSteps', { n: a.steps.length })
+      const meta = kind === 'draw' ? t('traceMeta')
         : `${t('nSteps', { n: a.steps.length })}${helpers ? ` · ${helperText(t('withHelper', { h: helpers }))}` : ''}`;
       const picture = kind === 'draw' ? `<span class="artbox">${art(id, 0)}</span>` : pics(a.hero);
-      return `<button class="card k-${kind}" data-act="go" data-to="intro:${id}" data-say="${esc(L(a.name))}">${picture}<span class="cardtext"><span class="name">${esc(L(a.name))}</span><span class="meta">${esc(meta)}</span></span></button>`;
+      const open = kind === 'draw' ? `data-act="draw" data-id="${id}"` : `data-act="go" data-to="intro:${id}"`;
+      return `<button class="card k-${kind}" ${open} data-say="${esc(L(a.name))}">${picture}<span class="cardtext"><span class="name">${esc(L(a.name))}</span><span class="meta">${esc(meta)}</span></span></button>`;
     });
     if (kind === 'draw') {
-      cards.push(`<button class="card k-draw touch-only" data-act="go" data-to="canvas:free" data-say="${esc(t('free'))}">${pics(['paintbrush'])}<span class="cardtext"><span class="name">${esc(t('free'))}</span><span class="meta">${esc(t('freeHint'))}</span></span></button>`);
+      cards.push(`<button class="card k-draw" data-act="draw" data-id="free" data-say="${esc(t('free'))}">${pics(['paintbrush'])}<span class="cardtext"><span class="name">${esc(t('free'))}</span><span class="meta">${esc(t('freeHint'))}</span></span></button>`);
     }
     const names = ids.map((id) => L(ACTIVITIES[id].name)).join(', ');
     return {
@@ -465,20 +553,9 @@ const SCREENS = {
   intro(id) {
     const a = ACTIVITIES[id];
     if (!a) return SCREENS.home();
-    if (a.kind === 'draw' && !isGlasses()) {
-      // On a touch screen she chooses first: paper (with an optional photo at the end) or the screen.
-      const html = `${topBar(L(a.name), { sub: esc(t('nSteps', { n: a.steps.length })), lead: `<span class="artbox lead">${art(id, 0)}</span>` })}
-        <h2 class="howdraw">${esc(t('howDraw'))}</h2>
-        <div class="choices">
-          <button class="choice" data-act="go" data-to="step:${id}:1" data-say="${esc(t('onPaperBtn'))}">${pics(['page_facing_up', 'crayon'])}<span>${esc(t('onPaperBtn'))}</span></button>
-          <button class="choice" data-act="go" data-to="canvas:${id}:1" data-say="${esc(t('onScreenBtn'))}">${pics(['paintbrush'])}<span>${esc(t('onScreenBtn'))}</span></button>
-        </div>
-        <div class="bar">${homeBtn()}</div>`;
-      return { html, say: `${L(a.name)}. ${t('howDraw')}`, focus: '.choice' };
-    }
-    const needs = a.kind === 'draw' ? DRAW_NEEDS : a.needs;
+    const needs = a.needs;
     const got = ticks[id] || (ticks[id] = new Set());
-    const lead = a.kind === 'draw' ? `<span class="artbox lead">${art(id, 0)}</span>` : pics(a.hero, 'lead');
+    const lead = pics(a.hero, 'lead');
     const html = `${topBar(L(a.name), { sub: esc(t('nSteps', { n: a.steps.length })), lead })}
       <div class="intro k-${a.kind}">
         <div class="needs">
@@ -500,15 +577,9 @@ const SCREENS = {
     const n = Math.min(Math.max(parseInt(nStr, 10) || 1, 1), total);
     const st = a.steps[n - 1];
     const last = n === total;
-    const picture = a.kind === 'draw' ? `<span class="artbox big">${art(id, n)}</span>` : pics(stepPictures(st), 'step');
+    const picture = pics(stepPictures(st), 'step');
     const dots = Array.from({ length: total }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('');
-    let actions;
-    if (last && a.kind === 'draw') {
-      actions = `<button class="pill touch-only" data-act="photo" data-id="${id}">${pic('camera_with_flash')}<span>${esc(t('takePhoto'))}</span></button>
-        <button class="primary big" data-act="paperdone" data-id="${id}">${esc(t('finish'))}<span class="check" aria-hidden="true"></span></button>`;
-    } else {
-      actions = `<button class="primary big" data-act="${last ? 'finish' : 'next'}" data-id="${id}">${esc(last ? t('finish') : t('next'))}<span class="${last ? 'check' : 'arrow'}" aria-hidden="true"></span></button>`;
-    }
+    const actions = `<button class="primary big" data-act="${last ? 'finish' : 'next'}" data-id="${id}">${esc(last ? t('finish') : t('next'))}<span class="${last ? 'check' : 'arrow'}" aria-hidden="true"></span></button>`;
     const sentence = helperText(L(st));
     const html = `<header class="top step-top">
         <div class="titles"><div><h1 tabindex="-1">${esc(L(a.name))}</h1><p class="sub"><span class="stepof">${esc(t('stepOf', { n, t: total }))}</span><span class="dots" aria-hidden="true">${dots}</span></p></div></div>
@@ -534,9 +605,9 @@ const SCREENS = {
   done(id) {
     const a = ACTIVITIES[id];
     const item = room[room.length - 1];
-    const seen = item && item.kind === 'draw' && !!drawingOf(item);
-    const praise = t(seen ? 'praiseSeen' : 'praiseDone');
-    const line = Array.isArray(praise) ? praise[room.length % praise.length] : '';
+    // A plain, warm closing line about what it is for; never a verdict on how something looks.
+    const line = a && a.kind === 'cook' ? t('closeCook') : a && a.kind === 'make' ? t('closeMake') : '';
+    if (item && item.kind === 'draw') doneDraft = item.act;
     const madeText = a ? L(a.doneText) : L({ en: 'You made a drawing.', ur: 'آپ نے تصویر بنائی۔' });
     let hero;
     let keepText;
@@ -556,15 +627,16 @@ const SCREENS = {
     const html = `<div class="donebox">
         <div class="celebrate">${hero}${pic('sparkles', 'spark')}</div>
         <h1 tabindex="-1">${esc(madeText)}</h1>
-        <p class="praise">${esc(line)}</p>
+        ${line ? `<p class="praise">${esc(line)}</p>` : ''}
         <p class="keeptext">${keepPic}<span>${esc(keepText)}</span></p>
+        ${item && item.act === id ? `<button class="pill notdone" data-act="notDone">${esc(t('notDone'))}</button>` : ''}
       </div>
       <div class="bar">
         ${homeBtn()}
         ${readBtn(true)}
         <button class="primary big" data-act="go" data-to="room" data-replace="1">${pic('couch_and_lamp')}<span>${esc(t('seeRoom'))}</span></button>
       </div>`;
-    return { html, say: `${madeText} ${line} ${keepText}`, focus: '.bar .primary' };
+    return { html, say: `${madeText} ${line} ${keepText}`.replace(/\s+/g, ' ').trim(), focus: '.bar .primary' };
   },
 
   room(pStr) {
@@ -620,26 +692,6 @@ const SCREENS = {
     return { html, say: `${t('day')}. ${all ? hint : items.filter((_, i) => !day.done.includes(i)).map((d) => d.text).join(', ')}`, focus: '.dayrow' };
   },
 
-  canvas(id, nStr) {
-    const a = ACTIVITIES[id] && ACTIVITIES[id].kind === 'draw' ? ACTIVITIES[id] : null;
-    const n = a ? Math.min(Math.max(parseInt(nStr, 10) || 1, 1), a.steps.length) : 0;
-    const html = `${a ? '' : `<p class="padhint">${esc(t('freeHint'))}</p>`}<div class="padarea${a ? '' : ' free'}">
-        ${a ? `<div class="padguide" id="padguide">${guideHtml(id, n)}</div>` : ''}
-        <div class="padwrap"><canvas id="pad" aria-label="${esc(a ? L(a.name) : t('free'))}"></canvas></div>
-      </div>
-      <div class="palette">
-        <div class="swatches">${PAD_COLOURS.map((c, i) => `<button class="swatch${i === 0 ? ' on' : ''}" data-act="colour" data-i="${i}" style="--c:${c.css}" aria-label="${esc(L(c))}" aria-pressed="${i === 0}"></button>`).join('')}</div>
-        <div class="padtools">
-          <button class="pill" data-act="undo">${esc(t('undo'))}</button>
-          <button class="pill" data-act="wipe">${esc(t('again'))}</button>
-          ${homeBtn(false)}
-          <button class="primary big" data-act="savedrawing" data-id="${esc(a ? id : 'free')}" disabled>${esc(t('done'))}<span class="check" aria-hidden="true"></span></button>
-        </div>
-      </div>`;
-    const say = a ? `${L(a.name)}. ${t('stepSay', { n })} ${L(a.steps[n - 1])}` : t('freeHint');
-    return { html, say, focus: '.swatch', after: () => pad.start(a ? id : 'free') };
-  },
-
   helper() {
     const opt = (key, value, label) => `<button class="seg${settings[key] === value ? ' on' : ''}" data-act="set" data-key="${key}" data-value="${value}" aria-pressed="${settings[key] === value}">${esc(label)}</button>`;
     const row = (label, inner) => `<div class="setrow"><span class="setlabel">${esc(label)}</span><div class="segs">${inner}</div></div>`;
@@ -666,6 +718,13 @@ const SCREENS = {
         <div class="touch-only">${row(t('themeLabel'), `${opt('theme', 'dark', t('dark'))}${opt('theme', 'light', t('light'))}`)}</div>
         ${row(t('showLabel'), showRow)}
         ${row(t('activitiesLabel'), actRow)}
+        ${row(t('guideLabel'), `${opt('guide', true, t('on'))}${opt('guide', false, t('off'))}`)}
+        <div class="setrow touch-only"><span class="setlabel">${esc(t('vibrateLabel'))}</span>
+          ${canBuzz() ? `<div class="segs">${opt('vibrate', true, t('on'))}${opt('vibrate', false, t('off'))}</div>` : `<span class="voicestate">${esc(t('vibrateNone'))}</span>`}
+          <p class="fine">${esc(t('vibrateNote'))}</p>
+        </div>
+        ${row(t('dragLabel'), `${opt('dragCheck', true, t('on'))}${opt('dragCheck', false, t('off'))}`)}
+        ${settings.dragCheck ? `<div class="setrow"><span class="setlabel"></span><div class="dragtry" id="dragtry"><p>${esc(t('dragTry'))}</p><p class="dragcheck" id="dragcheck"></p></div></div>` : ''}
         <label class="setrow"><span class="setlabel">${esc(t('dayLabel'))}</span><textarea id="dayInput" rows="6" maxlength="440">${esc(dayText)}</textarea></label>
         <div class="setrow"><span class="setlabel"></span><div class="daypreview" id="dayPreview">${dayPreview()}</div></div>
         <div class="setrow"><span class="setlabel"></span><div class="segs"><button class="seg" data-act="dayStarter">${esc(t('dayReset'))}</button></div></div>
@@ -685,6 +744,8 @@ const SCREENS = {
       say: t('helperTitle'),
       focus: '.seg',
       after: () => {
+        drag.area = $('#dragtry');
+        dragShow();
         let timer;
         const later = (fn) => { clearTimeout(timer); timer = setTimeout(fn, 400); };
         const name = $('#nameInput');
@@ -709,22 +770,10 @@ function dayPreview() {
   return dayList().map((d) => `<span class="dp">${pic(d.img)}<span>${esc(d.text)}</span></span>`).join('');
 }
 
-function guideHtml(id, n) {
-  const a = ACTIVITIES[id];
-  const total = a.steps.length;
-  return `<div class="guidehead"><span class="artbox">${art(id, n)}</span><p class="sub">${esc(t('stepOf', { n, t: total }))}</p></div>
-    <p class="say">${esc(L(a.steps[n - 1]))}</p>
-    <div class="padsteps">
-      <button class="pill" data-act="padstep" data-n="${n - 1}" ${n === 1 ? 'disabled' : ''} aria-label="${esc(t('prev'))}"><span class="arrow back" aria-hidden="true"></span></button>
-      ${readBtn(true)}
-      <button class="pill" data-act="padstep" data-n="${n + 1}" ${n === total ? 'disabled' : ''} aria-label="${esc(t('next'))}"><span>${esc(t('next'))}</span><span class="arrow" aria-hidden="true"></span></button>
-    </div>`;
-}
-
 function glassesLink() {
   const base = `${location.origin}${location.pathname.replace(/index\.html$/, '')}`;
-  const { name, helperName, lang, greet, voice, autoRead, rate, size, show, hide, dayItems } = settings;
-  return `${base}#s=${encodeSettings({ name, helperName, lang, greet, voice, autoRead, rate, size, show, hide, dayItems })}`;
+  const { name, helperName, lang, greet, voice, autoRead, rate, size, show, hide, dayItems, guide } = settings;
+  return `${base}#s=${encodeSettings({ name, helperName, lang, greet, voice, autoRead, rate, size, show, hide, dayItems, guide })}`;
 }
 
 const deepLink = () => `fb-viewapp://web_app_deep_link?appName=Gulzar&appUrl=${encodeURIComponent(glassesLink())}`;
@@ -734,7 +783,7 @@ function refreshLink() {
   if (a) a.href = deepLink();
 }
 
-// ---- drawing pad (touch screens only) ---------------------------------------------------------------------
+// ---- drawing pad ------------------------------------------------------------------------------------------
 const PAD_COLOURS = [
   { css: 'var(--ink)', en: 'Ink', ur: 'سیاہی' },
   { css: '#FF5A5A', en: 'Red', ur: 'لال' },
@@ -744,33 +793,72 @@ const PAD_COLOURS = [
   { css: '#FF6FB0', en: 'Pink', ur: 'گلابی' },
 ];
 
-const pad = {
-  canvas: null, ctx: null, actions: [], colour: 0, live: null, dpr: 1, key: '', drafts: {},
+// A drawing in progress is kept for this visit (sessionStorage): it survives leaving the drawing page by Home
+// or Back, and "Not finished yet" can give it back after Done.
+const draft = {
+  name: (key) => `gulzar.draft.${key}`,
+  load(key) {
+    try {
+      const list = JSON.parse(sessionStorage.getItem(this.name(key)) || '[]');
+      return Array.isArray(list) ? list.filter((a) => a && (a.wipe || (Array.isArray(a.pts) && a.pts.length))) : [];
+    } catch (e) {
+      return [];
+    }
+  },
+  save(key, actions) {
+    try { sessionStorage.setItem(this.name(key), JSON.stringify(actions)); } catch (e) { /* too large to keep; drawing still works */ }
+  },
+  drop(key) {
+    try { sessionStorage.removeItem(this.name(key)); } catch (e) { /* nothing kept */ }
+  },
+};
 
-  // A drawing in progress survives leaving the pad (Home, Back) until the app is closed.
+const pad = {
+  canvas: null, ctx: null, actions: [], colour: 0, live: null, dpr: 1, draftKey: '', w: 0, h: 0, pointerAt: 0, penSaid: false,
+  pen: { on: false, down: false, x: 0.5, y: 0.5, lastKey: '', lastAt: 0, step: 0.035 },
+
   start(key) {
     this.canvas = $('#pad');
     if (!this.canvas) return;
-    this.key = key;
+    this.draftKey = key;
     this.ctx = this.canvas.getContext('2d');
-    this.actions = this.drafts[key] || [];
-    this.drafts[key] = this.actions;
-    this.colour = 0;
+    this.actions = draft.load(key);
+    this.live = null;
+    this.pen.on = false;
+    this.pen.down = false;
     this.fit();
     const c = this.canvas;
     c.addEventListener('pointerdown', (e) => this.down(e));
     c.addEventListener('pointermove', (e) => this.move(e));
     c.addEventListener('pointerup', () => this.up());
     c.addEventListener('pointercancel', () => this.up());
-    c.addEventListener('pointerleave', () => this.up());
-    this.updateDone();
+    c.addEventListener('keydown', (e) => this.keyPen(e));
+    c.addEventListener('blur', () => this.penOff());
+    this.changed(false);
+    this.showPen();
   },
 
-  forget(key) { delete this.drafts[key]; },
+  setColour(i) {
+    this.colour = i;
+    screenEl.querySelectorAll('.swatch').forEach((sw) => {
+      const on = Number(sw.dataset.i) === i;
+      sw.classList.toggle('on', on);
+      sw.setAttribute('aria-pressed', on);
+    });
+    const cb = $('.colourbtn');
+    if (cb) cb.style.setProperty('--c', PAD_COLOURS[i].css);
+    this.showPen();
+  },
 
-  updateDone() {
+  // After any change: Done is on only with something to keep, the hint goes once there is a line, and the
+  // draft is kept.
+  changed(keep = true) {
+    const shown = this.visible().length;
     const d = $('[data-act="savedrawing"]');
-    if (d) d.disabled = this.visible().length === 0;
+    if (d) d.disabled = shown === 0;
+    const hint = $('#emptyhint');
+    if (hint) hint.hidden = shown > 0;
+    if (keep) draft.save(this.draftKey, this.actions);
   },
 
   fit() {
@@ -790,29 +878,113 @@ const pad = {
 
   point(e) {
     const r = this.canvas.getBoundingClientRect();
-    return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
+    return [+((e.clientX - r.left) / r.width).toFixed(4), +((e.clientY - r.top) / r.height).toFixed(4)];
   },
 
   down(e) {
     e.preventDefault();
-    this.canvas.setPointerCapture(e.pointerId);
+    this.pointerAt = Date.now();
+    if (this.pen.on) this.penOff();
+    try { this.canvas.setPointerCapture(e.pointerId); } catch (err) { /* capture is a nicety */ }
     this.live = { c: this.colour, pts: [this.point(e)] };
     this.actions.push(this.live);
     this.redraw();
-    this.updateDone();
+    this.changed(false);
   },
 
   move(e) {
-    if (!this.live) return;
-    this.live.pts.push(this.point(e));
-    this.stroke(this.live, true);
+    if (!this.live || this.pen.down) return;
+    this.pointerAt = Date.now();
+    const list = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+    const events = list.length ? list : [e];
+    events.forEach((ev) => this.live.pts.push(this.point(ev)));
+    this.stroke(this.live, events.length);
   },
 
-  up() { this.live = null; },
+  up() {
+    if (!this.live || this.pen.down) return;
+    this.pointerAt = Date.now();
+    this.live = null;
+    buzz('stroke');
+    this.changed();
+  },
+
+  // Drawing with swipes (the glasses' fallback, and any keyboard): a pinch (Enter) shows the pen, the next
+  // pinch puts it down, swipes draw, a pinch lifts it. With the pen up, swiping past an edge leaves the canvas.
+  // Without the pen, swipes move between buttons as usual, so the canvas never traps them.
+  keyPen(e) {
+    const p = this.pen;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (Date.now() - this.pointerAt < 400) return; // the same pinch already drew a line
+      if (!p.on) {
+        p.on = true;
+        if (!this.penSaid) { this.penSaid = true; speech.say(t('penUp')); }
+      } else if (!p.down) {
+        p.down = true;
+        this.live = { c: this.colour, pts: [[+p.x.toFixed(4), +p.y.toFixed(4)]] };
+        this.actions.push(this.live);
+        this.redraw();
+        this.changed(false);
+      } else {
+        this.liftPen();
+      }
+      this.showPen();
+      return;
+    }
+    const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (!d || !p.on) return;
+    e.preventDefault();
+    const atEdge = (d[0] < 0 && p.x <= 0) || (d[0] > 0 && p.x >= 1) || (d[1] < 0 && p.y <= 0) || (d[1] > 0 && p.y >= 1);
+    if (atEdge && !p.down) {
+      this.penOff();
+      leaveCanvas(e.key);
+      return;
+    }
+    const now = Date.now();
+    p.step = p.lastKey === e.key && now - p.lastAt < 400 ? Math.min(0.1, p.step * 1.35) : 0.035;
+    p.lastKey = e.key;
+    p.lastAt = now;
+    p.x = Math.min(1, Math.max(0, p.x + d[0] * p.step));
+    p.y = Math.min(1, Math.max(0, p.y + d[1] * p.step));
+    if (p.down && this.live) {
+      this.live.pts.push([+p.x.toFixed(4), +p.y.toFixed(4)]);
+      this.stroke(this.live, 1);
+    }
+    this.showPen();
+  },
+
+  liftPen() {
+    if (!this.pen.down) return;
+    this.pen.down = false;
+    this.live = null;
+    buzz('stroke');
+    this.changed();
+  },
+
+  penOff() {
+    this.liftPen();
+    this.pen.on = false;
+    this.showPen();
+  },
+
+  showPen() {
+    const box = $('#canvasbox');
+    const cur = $('#pencursor');
+    if (!box || !cur || !this.canvas) return;
+    const p = this.pen;
+    box.classList.toggle('keypen', p.on);
+    cur.classList.toggle('down', p.down);
+    cur.style.transform = `translate(${(p.x * this.w).toFixed(1)}px, ${(p.y * this.h).toFixed(1)}px)`;
+    cur.style.setProperty('--c', this.css(this.colour));
+    const cap = $('#pencap');
+    if (cap) cap.textContent = p.on ? t(p.down ? 'penDown' : 'penUp') : '';
+  },
 
   width() { return Math.max(8, Math.min(this.w, this.h) * 0.022); },
 
-  stroke(s, tailOnly) {
+  // added = how many points arrived since the last paint (0 = the whole stroke)
+  stroke(s, added = 0) {
     const ctx = this.ctx;
     const pts = s.pts;
     ctx.save();
@@ -829,7 +1001,7 @@ const pad = {
       ctx.arc(x, y, ctx.lineWidth / 2, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      const from = tailOnly ? Math.max(0, pts.length - 3) : 0;
+      const from = added ? Math.max(0, pts.length - added - 2) : 0;
       ctx.beginPath();
       let [x0, y0] = P(pts[from]);
       ctx.moveTo(x0, y0);
@@ -856,19 +1028,22 @@ const pad = {
   redraw() {
     if (!this.ctx) return;
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.visible().forEach((s) => this.stroke(s, false));
+    this.visible().forEach((st) => this.stroke(st, 0));
   },
 
   undo() {
+    this.liftPen();
     this.actions.pop();
     this.redraw();
-    this.updateDone();
+    this.changed();
   },
 
+  // Clear can be undone: it is a marker in the list, not a loss.
   wipe() {
+    this.liftPen();
     if (this.actions.length && !this.actions[this.actions.length - 1].wipe) this.actions.push({ wipe: true });
     this.redraw();
-    this.updateDone();
+    this.changed();
   },
 
   // The drawing as strokes, cropped to what was drawn (with a margin, in the frames' 4:3 shape) and scaled to
@@ -901,6 +1076,113 @@ const pad = {
   },
 };
 
+// With the pen up, swiping past the bottom edge goes to the nearest button below, past the top edge to the
+// buttons above; past the sides the pen just goes away and the next swipe moves as usual.
+function leaveCanvas(key) {
+  const c = $('#pad');
+  if (!c) return;
+  const sel = key === 'ArrowDown' ? '.drawbar button:not([disabled])' : key === 'ArrowUp' ? '.drawtop button:not([disabled])' : '';
+  if (!sel) return;
+  const r = c.getBoundingClientRect();
+  const x = r.left + pad.pen.x * r.width;
+  const list = [...screenEl.querySelectorAll(sel)].filter((b) => b.offsetParent !== null);
+  if (!list.length) return;
+  const mid = (b) => { const q = b.getBoundingClientRect(); return Math.abs(q.left + q.width / 2 - x); };
+  list.sort((p, q) => mid(p) - mid(q));
+  list[0].focus();
+}
+
+// ---- the drawing page (draw.html) ---------------------------------------------------------------------------
+// Drawing is the activity: the canvas opens straight away, with the picture beside it and its outline under
+// her strokes as dots to trace or ignore. Steps appear only on request ("Show me how"), one at a time. Done is
+// one press, and the done screen can take it back. Paper is the other way to draw, with a photo at the end.
+const drawState = { id: 'free', tip: 0, paper: false };
+
+function drawPageHtml() {
+  const { id, tip, paper } = drawState;
+  const a = ACTIVITIES[id];
+  const glasses = isGlasses();
+  const name = a ? L(a.name) : t('free');
+  const total = a ? a.steps.length : 0;
+  const tipLabel = tip === 0 ? t(glasses ? 'stepsShort' : 'showHow') : tip < total ? t(glasses ? 'nextShort' : 'nextStep') : t(glasses ? 'hideShort' : 'hideSteps');
+  const tipsBtn = a ? `<button class="pill tips" data-act="tips" data-say="${esc(tipLabel)}">${esc(tipLabel)}</button>` : '';
+  const modeBtn = a ? `<button class="pill mode" data-act="mode">${pic(paper ? 'paintbrush' : 'page_facing_up')}<span class="long">${esc(paper ? t('onScreenBtn') : t('onPaperBtn'))}</span><span class="short">${esc(paper ? t('screenShort') : t('paperShort'))}</span></button>` : '';
+  const tipBox = a && tip ? `<div class="tipbox">
+      <p class="tipof">${esc(t('stepOf', { n: tip, t: total }))}</p>
+      <p class="say">${esc(L(a.steps[tip - 1]))}</p>
+      <div class="tipnav touch-only">
+        <button class="pill" data-act="tipPrev"${tip === 1 ? ' disabled' : ''} aria-label="${esc(t('prevStep'))}"><span class="arrow back" aria-hidden="true"></span></button>
+        ${tip < total ? `<button class="pill" data-act="tips"><span>${esc(t('nextStep'))}</span><span class="arrow" aria-hidden="true"></span></button>` : ''}
+        <button class="pill" data-act="tipHide">${esc(t('hideSteps'))}</button>
+      </div>
+    </div>` : '';
+  const dotsBtn = paper ? '' : `<button class="pill dots" data-act="dots" aria-pressed="${settings.guide}">${esc(t(settings.guide ? 'dotsHide' : 'dotsShow'))}</button>`;
+  const swatches = (where) => `<div class="swatches ${where}">${PAD_COLOURS.map((c, i) => `<button class="swatch${i === pad.colour ? ' on' : ''}" data-act="colour" data-i="${i}" style="--c:${c.css}" aria-label="${esc(L(c))}" aria-pressed="${i === pad.colour}"></button>`).join('')}</div>`;
+  // Beside the canvas on a wide screen (above it on a tall one): the picture, the colours, and the help.
+  const side = a ? `<div class="drawside"><span class="artbox target">${art(id, 0)}</span>${tipBox}${paper || glasses ? '' : `${swatches('inside')}<div class="sidebtns">${tip ? '' : tipsBtn}${dotsBtn}</div>`}</div>` : '';
+  const hint = glasses ? t('drawHintGlasses') : a && settings.guide ? t('traceHint') : a ? t('drawHint') : t('freeHint');
+  const surface = paper
+    ? `<span class="artbox paperart">${art(id, tip)}</span><p class="paperneed">${pics(['page_facing_up', 'crayon'])}<span>${esc(t('paperNeed'))}</span></p>`
+    : `${a && settings.guide ? guideSvg(id, tip) : ''}<canvas id="pad" tabindex="0" aria-label="${esc(name)}"></canvas>
+       <span class="pencursor" id="pencursor" aria-hidden="true"></span><p class="pencap" id="pencap" aria-live="polite"></p>
+       <p class="emptyhint" id="emptyhint">${esc(hint)}</p>`;
+  const colours = glasses
+    ? `<button class="pill colourbtn" data-act="colourNext" style="--c:${PAD_COLOURS[pad.colour].css}"><span class="cdot" aria-hidden="true"></span><span>${esc(t('colour'))}</span></button>`
+    : swatches(a ? 'inbar' : 'inbar always');
+  const tools = paper
+    ? `${glasses ? tipsBtn : ''}${homeBtn(false)}<button class="pill touch-only" data-act="photo" data-id="${id}">${pic('camera_with_flash')}<span>${esc(t('takePhoto'))}</span></button>`
+    : `${colours}<button class="pill" data-act="undo">${esc(t('undo'))}</button><button class="pill" data-act="wipe">${esc(t('again'))}</button>${glasses ? tipsBtn : ''}${homeBtn(false)}`;
+  const done = `<button class="primary big" data-act="${paper ? 'paperdone' : 'savedrawing'}" data-id="${esc(a ? id : 'free')}"${paper ? '' : ' disabled'}>${esc(t('done'))}<span class="check" aria-hidden="true"></span></button>`;
+  return `<header class="top drawtop">
+      <div class="titles">${a ? `<span class="artbox lead">${art(id, 0)}</span>` : ''}<div><h1 tabindex="-1">${esc(name)}</h1></div></div>
+      <div class="tools">${modeBtn}${readBtn(true)}</div>
+    </header>
+    <div class="drawmain${paper ? ' paper' : ''}${a ? '' : ' free'}${tip ? ' tipping' : ''}">
+      ${side}
+      <div class="canvasbox" id="canvasbox">${surface}${settings.dragCheck ? '<p class="dragcheck" id="dragcheck"></p>' : ''}</div>
+    </div>
+    <div class="bar drawbar">${tools}<span class="spacer"></span>${done}</div>`;
+}
+
+function drawSay() {
+  const { id, tip, paper } = drawState;
+  const a = ACTIVITIES[id];
+  if (a && tip) return `${t('stepSay', { n: tip })} ${L(a.steps[tip - 1])}`;
+  const name = a ? L(a.name) : t('free');
+  if (paper) return `${name}. ${t('paperNeed')}`;
+  return `${name}. ${isGlasses() ? t('drawHintGlasses') : a && settings.guide ? t('traceHint') : a ? t('drawHint') : t('freeHint')}`;
+}
+
+function renderDraw({ focus = '', say = false } = {}) {
+  applyLook();
+  lastCanVoice = canVoice();
+  speech.stop();
+  pad.canvas = null;
+  screenEl.innerHTML = drawPageHtml();
+  screenEl.dataset.screen = 'draw';
+  document.title = `${drawState.id === 'free' ? t('free') : L(ACTIVITIES[drawState.id].name)} · ${t('appName')}`;
+  current = { say: drawSay() };
+  if (!drawState.paper) pad.start(drawState.id);
+  drag.area = $('#canvasbox');
+  dragShow();
+  if (isGlasses() || lastInput === 'key') {
+    const shown = (sel) => [...screenEl.querySelectorAll(sel)].find((el) => el.offsetParent !== null && !el.disabled);
+    const f = (focus && shown(focus)) || shown('#pad') || shown('.drawbar .primary');
+    if (f) f.focus({ preventScroll: true });
+  }
+  if (say && settings.autoRead) speech.say(current.say);
+}
+
+function startDrawPage() {
+  const q = new URLSearchParams(location.search);
+  const id = q.get('a');
+  drawState.id = ACTIVITIES[id] && ACTIVITIES[id].kind === 'draw' ? id : 'free';
+  drawState.paper = q.get('paper') === '1' && drawState.id !== 'free';
+  const depth = Math.min(Math.max(parseInt(q.get('d'), 10) || 0, 0), 4);
+  history.replaceState({ route: 'draw', depth }, '');
+  renderDraw();
+}
+
 // ---- a photo of a drawing made on paper (touch screens with a camera) -------------------------------------
 function pickPhoto(id) {
   const input = document.createElement('input');
@@ -911,9 +1193,9 @@ function pickPhoto(id) {
     const file = input.files && input.files[0];
     if (!file) return;
     try {
-      finishDrawing(id, await shrinkPhoto(file));
+      finishDrawing(id, await shrinkPhoto(file), { paper: true });
     } catch (e) {
-      finishDrawing(id, '');
+      finishDrawing(id, '', { paper: true });
     }
   });
   input.click();
@@ -951,8 +1233,16 @@ let current = { say: '' };
 let pendingRoute = null;
 let lastCanVoice = null;
 
+let doneDraft = null; // the drawing just finished: kept until the done screen is left, so "Not finished yet" can give it back
+
 function render(route, { fromUser = false } = {}) {
   const [name, ...args] = String(route || 'home').split(':');
+  if (doneDraft && name !== 'done') { draft.drop(doneDraft); doneDraft = null; }
+  // Entries from before drawing moved to draw.html may still be in history.
+  if (name === 'canvas' || ((name === 'intro' || name === 'step') && ACTIVITIES[args[0]] && ACTIVITIES[args[0]].kind === 'draw')) {
+    openDraw(name === 'canvas' ? args[0] || 'free' : args[0], { paper: name === 'step', replace: true });
+    return;
+  }
   speech.stop();
   if (!toastEl.hidden && Date.now() - (toast.at || 0) > 1200) toastEl.hidden = true;
   applyLook();
@@ -1007,6 +1297,7 @@ function resetTo(route) {
 }
 
 addEventListener('popstate', (e) => {
+  if (DRAW_PAGE || takeNext()) return;
   if (pendingRoute) {
     const r = pendingRoute;
     pendingRoute = null;
@@ -1027,14 +1318,79 @@ function finish(id) {
   const a = ACTIVITIES[id];
   if (!a) return;
   addToRoom({ kind: a.kind, act: id });
+  buzz('finish');
   resetTo(`done:${id}`);
 }
 
+// Drawing opens draw.html as the next history entry (in place of this one at the history limit). The depth
+// travels in its address, so Home there unwinds to the first entry.
+function openDraw(id, { paper = false, replace = false } = {}) {
+  const depth = (history.state && history.state.depth) || 0;
+  const push = !replace && depth < 4;
+  const url = `draw.html?a=${encodeURIComponent(id)}&d=${push ? depth + 1 : depth}${paper ? '&paper=1' : ''}`;
+  if (push) location.assign(url);
+  else location.replace(url);
+}
+
+function reloadState() {
+  settings = { ...DEFAULTS, ...sanitizeSettings(load('gulzar.settings', {})) };
+  settings.show = { ...DEFAULTS.show, ...settings.show };
+  room = Array.isArray(load('gulzar.room', [])) ? load('gulzar.room', []) : [];
+  day = load('gulzar.day', { date: '', done: [], planted: false });
+}
+
+// When a drawing is finished, draw.html leaves "gulzar.next" and goes back here. Unwind to the first entry,
+// then show the done screen from there, as finishing anything else does.
+function takeNext() {
+  let next = null;
+  try { next = sessionStorage.getItem('gulzar.next'); } catch (e) { return false; }
+  if (!next) return false;
+  const depth = (history.state && history.state.depth) || 0;
+  if (depth > 0) {
+    render('home');
+    history.go(-depth);
+    return true;
+  }
+  try { sessionStorage.removeItem('gulzar.next'); } catch (e) { /* shown once either way */ }
+  reloadState();
+  history.pushState({ route: next, depth: 1 }, '');
+  render(next, { fromUser: true });
+  return true;
+}
+
+// Done is one press, so the done screen can take it back: the keepsake leaves the room and the activity
+// opens again where it ended (a drawing with every line still there).
+function notDone() {
+  const item = room[room.length - 1];
+  if (!item) return;
+  room.pop();
+  save('gulzar.room', room);
+  if (item.drawing) { try { localStorage.removeItem(item.drawing); } catch (e) { /* already gone */ } }
+  if (item.kind === 'draw') {
+    doneDraft = null;
+    openDraw(item.act, { paper: !!item.paper, replace: true });
+    return;
+  }
+  const a = ACTIVITIES[item.act];
+  history.replaceState({ ...history.state, route: `step:${item.act}:${a ? a.steps.length : 1}` }, '');
+  render(history.state.route, { fromUser: true });
+}
+
+// Coming back to this page from the drawing page (a cached page restored by Back): what the drawing page
+// saved is read again before anything is shown.
+addEventListener('pageshow', (e) => {
+  if (DRAW_PAGE || !e.persisted) return;
+  reloadState();
+  speech.unlocked = !!(navigator.userActivation && navigator.userActivation.hasBeenActive);
+  if (!takeNext()) render(currentRoute());
+});
+
 // A drawing from the pad (strokes) or a photo (a small picture) is kept with the room; a drawing on paper
 // without a photo gets an honest stand-in (a page and a crayon), never the app's own example picture.
-function finishDrawing(id, payload) {
+function finishDrawing(id, payload, { paper = false } = {}) {
   const act = ACTIVITIES[id] ? id : 'free';
   const item = { kind: 'draw', act };
+  if (paper) item.paper = true;
   if (payload) {
     const key = `gulzar.drawing.${Date.now()}`;
     try {
@@ -1045,8 +1401,15 @@ function finishDrawing(id, payload) {
     }
   }
   addToRoom(item);
-  pad.forget(act);
-  resetTo(`done:${act}`);
+  buzz('finish');
+  if (!DRAW_PAGE) {
+    resetTo(`done:${act}`);
+    return;
+  }
+  // Back to the app page, which shows the done screen (takeNext).
+  try { sessionStorage.setItem('gulzar.next', `done:${act}`); } catch (e) { /* the room has it either way */ }
+  if (((history.state && history.state.depth) || 0) > 0) history.back();
+  else location.replace('./');
 }
 
 addEventListener('pointerdown', () => { if (!toastEl.hidden && Date.now() - (toast.at || 0) > 300) toastEl.hidden = true; }, true);
@@ -1127,7 +1490,7 @@ function pressedHold(el) {
   else if (kind === 'gear') toast(t('gearTapKeys'));
 }
 
-screenEl.addEventListener('contextmenu', (e) => { if (e.target.closest('[data-hold]') || e.target.closest('#pad')) e.preventDefault(); });
+screenEl.addEventListener('contextmenu', (e) => { if (e.target.closest('[data-hold]') || e.target.closest('#pad, .dragtry')) e.preventDefault(); });
 
 screenEl.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]');
@@ -1136,12 +1499,21 @@ screenEl.addEventListener('click', (e) => {
     e.preventDefault();
     return;
   }
+  // On the glasses a pinch may arrive both as a drag on the canvas and as Enter on the focused button: one
+  // gesture, one action.
+  if (DRAW_PAGE && lastInput === 'key' && Date.now() - pad.pointerAt < 400) return;
   if (b.dataset.hold) {
     pressedHold(b);
     return;
   }
   const act = b.dataset.act;
   const [screen, id, n] = currentRoute().split(':');
+  // Every press is acknowledged at once: a small spring, and on Android a short pulse.
+  b.classList.remove('pressed');
+  void b.offsetWidth;
+  b.classList.add('pressed');
+  setTimeout(() => b.classList.remove('pressed'), 300);
+  if (!['finish', 'savedrawing', 'paperdone', 'photo'].includes(act)) buzz(['next', 'prev', 'tips', 'tipPrev'].includes(act) ? 'step' : 'press');
 
   switch (act) {
     case 'go':
@@ -1164,7 +1536,7 @@ screenEl.addEventListener('click', (e) => {
       finish(b.dataset.id);
       break;
     case 'paperdone':
-      finishDrawing(b.dataset.id, '');
+      finishDrawing(b.dataset.id, '', { paper: true });
       break;
     case 'photo':
       pickPhoto(b.dataset.id);
@@ -1215,9 +1587,18 @@ screenEl.addEventListener('click', (e) => {
       history.replaceState({ ...history.state, route: `room:${b.dataset.p}`, fresh: false }, '');
       render(history.state.route, { fromUser: true });
       break;
+    case 'draw':
+      openDraw(b.dataset.id);
+      break;
+    case 'notDone':
+      notDone();
+      break;
     case 'colour':
-      pad.colour = Number(b.dataset.i);
-      screenEl.querySelectorAll('.swatch').forEach((s) => { s.classList.toggle('on', s === b); s.setAttribute('aria-pressed', s === b); });
+      pad.setColour(Number(b.dataset.i));
+      break;
+    case 'colourNext':
+      pad.setColour((pad.colour + 1) % PAD_COLOURS.length);
+      speech.say(L(PAD_COLOURS[pad.colour]));
       break;
     case 'undo':
       pad.undo();
@@ -1225,17 +1606,29 @@ screenEl.addEventListener('click', (e) => {
     case 'wipe':
       pad.wipe();
       break;
-    case 'padstep': {
-      const to = Number(b.dataset.n);
-      history.replaceState({ ...history.state, route: `canvas:${id}:${to}` }, '');
-      const guide = $('#padguide');
-      if (guide) guide.innerHTML = guideHtml(id, to);
-      current.say = `${t('stepSay', { n: to })} ${L(ACTIVITIES[id].steps[to - 1])}`;
-      if (settings.autoRead) speech.say(current.say);
-      const again = screenEl.querySelector(`[data-act="padstep"][data-n="${to + 1}"]:not([disabled])`) || screenEl.querySelector('[data-act="padstep"]:not([disabled])');
-      if (again && (isGlasses() || lastInput === 'key')) again.focus();
+    case 'tips': {
+      const total = ACTIVITIES[drawState.id].steps.length;
+      drawState.tip = drawState.tip >= total ? 0 : drawState.tip + 1;
+      renderDraw({ focus: '[data-act="tips"]', say: drawState.tip > 0 });
       break;
     }
+    case 'tipPrev':
+      drawState.tip = Math.max(1, drawState.tip - 1);
+      renderDraw({ focus: drawState.tip > 1 ? '[data-act="tipPrev"]' : '[data-act="tips"]', say: true });
+      break;
+    case 'tipHide':
+      drawState.tip = 0;
+      renderDraw({ focus: '[data-act="tips"]' });
+      break;
+    case 'dots':
+      settings.guide = !settings.guide;
+      saveSettings();
+      renderDraw({ focus: '[data-act="dots"]' });
+      break;
+    case 'mode':
+      drawState.paper = !drawState.paper;
+      renderDraw({ focus: '[data-act="mode"]', say: true });
+      break;
     case 'savedrawing':
       finishDrawing(b.dataset.id, pad.vectorSnapshot());
       break;
@@ -1296,14 +1689,23 @@ screenEl.addEventListener('focusin', (e) => {
 });
 
 addEventListener('resize', () => {
-  if (currentRoute().startsWith('canvas')) pad.fit();
-  else if (document.documentElement.classList.contains('mode-glasses') !== isGlasses()) render(currentRoute());
+  const lookChanged = document.documentElement.classList.contains('mode-glasses') !== isGlasses();
+  if (DRAW_PAGE) {
+    if (lookChanged) renderDraw();
+    else if (pad.canvas) { pad.fit(); pad.showPen(); }
+  } else if (lookChanged) {
+    render(currentRoute());
+  }
 });
 
 // ---- start --------------------------------------------------------------------------------------------------
-importFromLink();
-if (!history.state || !history.state.route) history.replaceState({ route: 'home', depth: 0 }, '');
-render(history.state.route);
+if (DRAW_PAGE) {
+  startDrawPage();
+} else {
+  importFromLink();
+  if (!history.state || !history.state.route) history.replaceState({ route: 'home', depth: 0 }, '');
+  if (!takeNext()) render(history.state.route);
+}
 wake();
 
 // Voices can arrive after the first screen. Redraw only if that changes whether there is a voice to offer.
@@ -1313,8 +1715,9 @@ if (speech.ok) {
     if (screen === 'helper') {
       const v = $('.voicestate');
       if (v) v.textContent = `${t('voiceStatus')}: ${speech.voiceFor('ur') ? t('voiceOk') : t('voiceNoUrdu')}`;
-    } else if (screen !== 'canvas' && canVoice() !== lastCanVoice) {
-      render(currentRoute());
+    } else if (canVoice() !== lastCanVoice) {
+      if (screen === 'draw') renderDraw();
+      else render(currentRoute());
     }
   };
   if (typeof speechSynthesis.addEventListener === 'function') speechSynthesis.addEventListener('voiceschanged', onVoices);

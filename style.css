@@ -1,7 +1,8 @@
 /* Gulzar. One clear thing per screen: a big picture, a few big words, one obvious next button.
    Dark by default (less glare, and black is see-through on the glasses' additive display). On the glasses
-   the room is drawn in light lines only, so the wearer still sees the world behind it. Nothing animates on
-   its own except the short welcome of a new keepsake. */
+   the room is drawn in light lines only, and outlines are rim-lit (brightest along the top edge), so the
+   wearer still sees the world behind. Nothing animates on its own except the short welcome of a new keepsake;
+   presses answer with a small spring, and a swipe past the end of a row with a small nudge. */
 
 @font-face {
   font-family: "Atkinson Next";
@@ -154,11 +155,21 @@ button, .seg {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  transition: transform 90ms ease, box-shadow 120ms ease, background-color 120ms ease, border-color 120ms ease;
+  transition: transform 260ms cubic-bezier(0.3, 1.5, 0.5, 1), box-shadow 120ms ease, background-color 120ms ease, border-color 120ms ease;
 }
 button:focus, .seg:focus { outline: none; }
 button:focus-visible, .seg:focus-visible, .mode-glasses button:focus, .mode-glasses .seg:focus { box-shadow: var(--focus-ring); }
-button:active { transform: scale(0.97); }
+button:active { transform: scale(0.96); transition: transform 60ms ease-out; }
+.pressed { animation: press 280ms cubic-bezier(0.3, 1.5, 0.5, 1); }
+@keyframes press { from { transform: scale(0.95); } to { transform: none; } }
+.nudge-up { animation: nudge-up 300ms cubic-bezier(0.3, 1.5, 0.5, 1); }
+.nudge-down { animation: nudge-down 300ms cubic-bezier(0.3, 1.5, 0.5, 1); }
+.nudge-left { animation: nudge-left 300ms cubic-bezier(0.3, 1.5, 0.5, 1); }
+.nudge-right { animation: nudge-right 300ms cubic-bezier(0.3, 1.5, 0.5, 1); }
+@keyframes nudge-up { 40% { transform: translateY(-6px); } }
+@keyframes nudge-down { 40% { transform: translateY(6px); } }
+@keyframes nudge-left { 40% { transform: translateX(-6px); } }
+@keyframes nudge-right { 40% { transform: translateX(6px); } }
 button[disabled] { opacity: 0.3; cursor: default; }
 .unseen { visibility: hidden; }
 .pill > span, .primary > span { white-space: nowrap; }
@@ -285,8 +296,6 @@ html[lang="ur"].mode-glasses.size-xl .needs h2 { font-size: 1.3rem; margin-botto
   html[lang="ur"].size-xl:not(.mode-glasses) .cards.k-draw .card { padding-block: 0.5rem; }
   html[lang="ur"].size-xl:not(.mode-glasses) .cards.k-draw .name { font-size: 1.5rem; line-height: 1.45; }
 }
-.size-xl:not(.mode-glasses) .choice .pic { width: 5rem; height: 5rem; }
-.size-xl:not(.mode-glasses) .choice { font-size: 1.8rem; }
 html[lang="ur"].size-xl .say { font-size: 1.9rem; line-height: 1.75; }
 html[lang="ur"].size-xl .step-top h1 { line-height: 1.45; }
 html[lang="ur"].size-xl .donebox h1 { font-size: 2.2rem; line-height: 1.5; }
@@ -433,10 +442,6 @@ html[lang="ur"] .say { line-height: 1.9; }
 .helper .pic { width: 3.2rem; height: 3.2rem; }
 .calm { margin-top: 1rem; font-size: 1.35rem; color: var(--soft); }
 
-.howdraw { font-size: 1.8rem; flex: none; }
-.choices { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; padding: 6px; margin: -6px; }
-.choice { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.9rem; padding: 1rem; border-radius: var(--r); border: 3px solid var(--draw); background: var(--draw-t); font-size: 2.1rem; font-weight: 800; }
-.choice .pic { width: 7rem; height: 7rem; }
 
 /* ---- finished ------------------------------------------------------------------------------------------- */
 .donebox { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.7rem; text-align: center; }
@@ -475,6 +480,11 @@ html[lang="ur"] .say { line-height: 1.9; }
 .roomsvg .frame { fill: var(--framebg); stroke: var(--frame); stroke-width: 10; }
 .roomsvg .frame.empty { fill: var(--mat); }
 .roomsvg .thing { filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.35)); }
+.roomsvg .sunpatch { fill: rgba(255, 226, 160, 0.13); }
+.roomsvg.sky-night .sunpatch { fill: rgba(170, 190, 255, 0.07); }
+.theme-light .roomsvg .sunpatch { fill: rgba(255, 236, 190, 0.5); }
+.roomsvg .rail { stroke: var(--trim); stroke-width: 5; opacity: 0.35; }
+.mode-glasses .roomsvg :is(.walltone, .sunpatch, .lampglow, .rail) { display: none; }
 .roomline { text-align: center; font-size: 1.45rem; color: var(--soft); flex: none; }
 
 .things { list-style: none; margin: 0; padding: 0.4rem; flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); align-content: start; gap: 0.8rem; }
@@ -516,32 +526,63 @@ html[lang="ur"] .say { line-height: 1.9; }
   .daylist { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-/* ---- drawing pad ---------------------------------------------------------------------------------------- */
-.screen[data-screen="canvas"] { padding: 0.8rem; gap: 0.8rem; }
-.padhint { flex: none; text-align: center; font-size: 1.5rem; font-weight: 700; color: var(--soft); }
-.padarea { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(17rem, 0.42fr) minmax(0, 1fr); gap: 0.8rem; }
-.padarea.free { grid-template-columns: minmax(0, 1fr); }
-.padguide { min-height: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.5rem; padding: 0.9rem; border-radius: 22px; border: 3px solid var(--draw); background: var(--draw-t); text-align: center; }
-.guidehead { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; flex: none; }
-.padguide .artbox { width: 8.5rem; height: 8.5rem; flex: none; }
-.padguide .say { font-size: 1.6rem; flex: 1 1 auto; min-height: 0; overflow: auto; }
-.padsteps { flex: none; }
-.size-xl .padguide .artbox { width: 6rem; height: 6rem; }
-.size-xl .padguide .say { font-size: 1.35rem; }
-html[lang="ur"] .padguide .say { line-height: 1.7; }
-html[lang="ur"].size-xl .padguide .artbox { width: 4.4rem; height: 4.4rem; }
-html[lang="ur"].size-xl .padguide .say { font-size: 1.25rem; line-height: 1.6; }
-.padsteps { display: flex; flex-wrap: nowrap; justify-content: center; gap: 0.5rem; margin-top: auto; }
-.padsteps .pill { min-height: 3.8rem; padding: 0 1rem; }
-.padsteps .read { min-height: 3.8rem; }
-.padwrap { position: relative; min-height: 0; border-radius: 22px; border: 3px solid var(--line); overflow: hidden; background: var(--paper); }
-#pad { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
-.swatch:not(.on) { opacity: 0.92; }
-.palette { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.8rem; flex: none; }
+/* ---- drawing page (draw.html) -------------------------------------------------------------------------- */
+/* The canvas is the screen. The picture to make sits beside it, its outline lies under her lines as dots to
+   trace or ignore, and steps appear only when asked for. */
+.screen[data-screen="draw"] { padding: 0.8rem 1rem 1rem; gap: 0.7rem; }
+.drawtop .artbox.lead { display: none; }
+.drawtop .pill { min-height: 3.8rem; }
+.drawtop .pill .pic { width: 2.2rem; height: 2.2rem; }
+.drawtop .short { display: none; }
+.drawmain {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(15rem, 0.32fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "side canvas";
+}
+.drawmain.free { grid-template-columns: minmax(0, 1fr); grid-template-areas: "canvas"; }
+.drawside { grid-area: side; min-width: 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 0.8rem; padding: 12px; margin: -12px; }
+.drawside .target { flex: 0 1 12rem; min-height: 5rem; width: 100%; height: 12rem; }
+.drawmain.paper .drawside .target, .drawmain.tipping .drawside .target { display: none; }
+.drawside .swatches { display: grid; grid-template-columns: repeat(3, 4.3rem); justify-content: center; gap: 0.75rem; flex: none; }
+.drawbar .swatches.inbar { display: none; }
+.drawbar .swatches.inbar.always { display: flex; }
+.tipbox { grid-area: tip; min-width: 0; flex: none; display: flex; flex-direction: column; gap: 0.35rem; padding: 0.8rem 1rem; border-radius: 20px; border: 3px solid var(--sun); background: var(--sun-t); }
+.tipof { font-size: 1.15rem; font-weight: 700; color: var(--soft); }
+.tipbox .say { font-size: 1.65rem; line-height: 1.25; }
+html[lang="ur"] .tipbox .say { line-height: 1.8; }
+.tipnav { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.2rem; }
+.tipnav .pill { min-height: 3.6rem; padding: 0 1rem; font-size: 1.15rem; }
+.sidebtns { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; margin-top: auto; flex: none; }
+.sidebtns .pill { justify-content: center; text-align: center; }
+.canvasbox { grid-area: canvas; position: relative; min-height: 0; min-width: 0; border-radius: 22px; border: 3px solid var(--line); overflow: hidden; background: var(--paper); }
+.canvasbox:has(#pad:focus-visible), .mode-glasses .canvasbox:has(#pad:focus) { box-shadow: var(--focus-ring); }
+#pad { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; }
+.guide { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; fill: none; stroke: var(--ink); color: var(--ink); stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 0.01 10; }
+.guide g { opacity: 0.62; }
+.guide g.now { opacity: 1; stroke: var(--sun); color: var(--sun); stroke-width: 6.5; }
+.theme-light .guide g.now { stroke: #9a6c00; color: #9a6c00; }
+.guide .dot { fill: currentColor; stroke: none; }
+.emptyhint { position: absolute; inset-inline: 1rem; bottom: 1rem; text-align: center; font-size: 1.35rem; font-weight: 700; color: var(--soft); pointer-events: none; }
+.notdone { margin-top: 0.6rem; min-height: 3.6rem; font-size: 1.2rem; }
+.pencursor { position: absolute; left: 0; top: 0; width: 2.4rem; height: 2.4rem; margin: -1.2rem 0 0 -1.2rem; border-radius: 50%; border: 3px solid var(--sun); box-shadow: 0 0 0 2px var(--bg); pointer-events: none; display: none; }
+.pencursor.down { background: var(--c, var(--sun)); }
+.canvasbox.keypen .pencursor { display: block; }
+.pencap { position: absolute; top: 0.6rem; inset-inline-start: 0.9rem; font-size: 1.25rem; font-weight: 700; color: var(--sun); pointer-events: none; }
+.paperart { position: absolute; inset: 1rem 1rem 4.4rem; width: auto; height: auto; }
+.paperneed { position: absolute; inset-inline: 0; bottom: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 0.6rem; font-size: 1.3rem; font-weight: 700; color: var(--soft); }
+.paperneed .pics .pic { width: 2.6rem; height: 2.6rem; }
+.dragcheck { position: absolute; inset-inline: 0; top: 0; margin: 0; padding: 0.35rem 0.7rem; font-size: 14px; line-height: 1.35; font-weight: 600; color: var(--soft); background: rgba(0, 0, 0, 0.62); pointer-events: none; font-variant-numeric: tabular-nums; direction: ltr; text-align: left; }
+.dragtry { position: relative; min-height: 9rem; border-radius: 16px; border: 3px dashed var(--line); padding: 0.8rem; touch-action: none; font-size: 1.2rem; color: var(--soft); }
+.dragtry .dragcheck { position: static; background: none; margin-top: 0.6rem; padding: 0; }
+.drawbar { justify-content: flex-start; }
 .swatches { display: flex; flex-wrap: wrap; gap: 0.75rem; }
 .swatch { width: 4.3rem; height: 4.3rem; border-radius: 50%; background: var(--c); border: 3px solid var(--line); }
 .swatch.on { box-shadow: 0 0 0 4px var(--bg), 0 0 0 9px var(--ink); }
-.padtools { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+.colourbtn .cdot { width: 1.7rem; height: 1.7rem; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--line); flex: none; }
 
 /* ---- helper settings ---------------------------------------------------------------------------------- */
 .settings { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 1rem; padding: 0.5rem 0.3rem; }
@@ -605,11 +646,14 @@ input:focus, textarea:focus { outline: none; border-color: var(--sun); }
   .stepbody { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 1rem; }
   .stepart { flex: 1 1 auto; align-self: stretch; min-height: 4.5rem; max-height: 36vh; }
   .steptext { flex: none; }
-  .padarea { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .padguide { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; align-items: center; text-align: start; max-height: 44vh; padding: 0.6rem 0.8rem; gap: 0.4rem 0.8rem; }
-  .padguide .artbox { width: 5.5rem; height: 5.5rem; }
-  .padguide .say { font-size: 1.4rem; max-height: 100%; }
-  .padsteps { grid-column: 1 / -1; margin-top: 0; justify-content: center; flex-wrap: wrap; }
+  .drawmain { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "side" "canvas"; }
+  .drawside { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "target btns" "tip tip"; gap: 0.6rem 0.9rem; overflow: visible; padding: 0; margin: 0; }
+  .drawside .target { grid-area: target; width: 6.5rem; height: 6.5rem; }
+  .drawmain.tipping .drawside .target { display: block; }
+  .drawside .tipbox { grid-area: tip; }
+  .drawside .swatches.inside { display: none; }
+  .drawbar .swatches.inbar { display: flex; }
+  .sidebtns { grid-area: btns; flex-direction: row; flex-wrap: wrap; align-items: center; margin: 0; }
   .cards { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; align-content: start; }
   .card { min-width: 0; }
   .cards.n4, .cards.n5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -643,13 +687,18 @@ input:focus, textarea:focus { outline: none; border-color: var(--sun); }
   .tt .name { font-size: 1.75rem; }
   .tile { flex-direction: column; justify-content: center; text-align: center; gap: 0.5rem; padding: 0.8rem 0.5rem; }
   .swatch { width: 3.4rem; height: 3.4rem; }
-  .howdraw { font-size: 1.6rem; }
+  .drawtop .long { display: none; }
+  .drawtop .short { display: inline; }
+  .drawbar .swatches { width: 100%; justify-content: space-between; gap: 0.5rem; }
+  .drawbar .swatch { width: 3.1rem; height: 3.1rem; }
+  .drawbar { gap: 0.6rem 0.5rem; }
+  .drawbar .pill { padding: 0 0.8rem; }
+  .drawbar .primary { padding: 0 1.2rem; }
+  .tipbox .say { font-size: 1.5rem; }
   .pics.lead { display: none; }
   .primary .pic { display: none; }
   .primary > span { white-space: normal; }
   .primary { padding: 0 1.6rem; }
-  .choice { font-size: 1.8rem; }
-  .choice .pic { width: 5rem; height: 5rem; }
   .daystrip .count { margin-inline-start: auto; }
   .setrow { grid-template-columns: 1fr; }
   .things { grid-template-columns: 1fr; }
@@ -657,12 +706,12 @@ input:focus, textarea:focus { outline: none; border-color: var(--sun); }
 
 @media (max-height: 520px) {
   .screen { height: auto; min-height: 100vh; min-height: 100dvh; overflow: visible; }
-  .tiles, .cards, .intro, .stepbody, .donebox, .things, .daylist, .settings, .choices { flex: none; overflow: visible; }
+  .tiles, .cards, .intro, .stepbody, .donebox, .things, .daylist, .settings { flex: none; overflow: visible; }
   .tiles { grid-auto-rows: minmax(7.5rem, auto); }
   .stepart { max-height: none; min-height: 9rem; align-self: start; }
   .say { font-size: 1.9rem; }
   .roombox { flex: none; height: 75vh; }
-  .padarea { flex: none; height: 85vh; }
+  .drawmain { flex: none; height: 82vh; }
   .bar { position: sticky; bottom: 0; z-index: 3; background: var(--bg); padding-block: 0.5rem; flex-wrap: nowrap; }
   .bar .primary { min-height: 56px; font-size: 22px; padding: 0 20px; }
   .bar .pill { min-height: 52px; font-size: 18px; padding: 0 14px; }
@@ -700,7 +749,7 @@ input:focus, textarea:focus { outline: none; border-color: var(--sun); }
 .mode-glasses .daystrip .label { font-size: 1.6rem; }
 .mode-glasses .daystrip .pips i { width: 0.9rem; height: 0.9rem; }
 .mode-glasses .daystrip .count { font-size: 1.45rem; min-width: 0; }
-.mode-glasses .tile, .mode-glasses .card, .mode-glasses .daystrip, .mode-glasses .need.got, .mode-glasses .dayrow.on { background: transparent; }
+.mode-glasses .tile, .mode-glasses .card, .mode-glasses .daystrip, .mode-glasses .need, .mode-glasses .dayrow { background: transparent; }
 .mode-glasses .card .meta { display: none; }
 .mode-glasses .sub, .mode-glasses .roomline, .mode-glasses .dayhint { font-size: 1.6rem; }
 .mode-glasses .dayhead .stage { width: 2.6rem; height: 2.6rem; }
@@ -777,6 +826,42 @@ html[lang="ur"].mode-glasses .stepbody { gap: 16px; }
 .mode-glasses .settings { gap: 10px; }
 .mode-glasses .setrow { grid-template-columns: 1fr; gap: 4px; }
 .mode-glasses .toast { font-size: 1.4rem; top: 10px; inset-inline-start: 14px; max-width: calc(100vw - 110px); }
+
+.mode-glasses .screen[data-screen="draw"] { padding: 12px 16px; gap: 8px; }
+.mode-glasses .drawtop .artbox.lead { display: block; width: 2.7rem; height: 2.7rem; }
+.mode-glasses .drawtop h1 { font-size: 1.7rem; }
+.mode-glasses .drawtop .long { display: none; }
+.mode-glasses .drawtop .short { display: inline; }
+.mode-glasses .drawtop .pill { min-height: 3.3rem; padding: 0 0.8rem; font-size: 1.25rem; }
+.mode-glasses .drawtop .pill .pic { width: 1.9rem; height: 1.9rem; }
+.mode-glasses .drawmain { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "tip" "canvas"; gap: 8px; }
+.mode-glasses .drawside { display: contents; }
+.mode-glasses .drawside .target, .mode-glasses .sidebtns, .mode-glasses .swatches { display: none !important; }
+.mode-glasses .tipbox { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 0 0.7rem; padding: 0.35rem 0.8rem; background: transparent; }
+.mode-glasses .tipbox .say { font-size: 1.6rem; }
+.mode-glasses .emptyhint { top: 0.5rem; bottom: auto; font-size: 1.45rem; }
+.mode-glasses .drawbar { flex-wrap: nowrap; gap: 8px; }
+.mode-glasses .drawbar .pill { min-height: 3.8rem; padding: 0 0.85rem; font-size: 1.3rem; }
+.mode-glasses .drawbar .primary { padding: 0 1.3rem; }
+.mode-glasses .paperart { inset: 0.6rem 0.6rem 3.6rem; }
+.mode-glasses .paperneed { font-size: 1.5rem; }
+.mode-glasses .dragcheck { font-size: 15px; }
+
+/* Rim light: on the additive display a dark form is described by its edges. Outlines are brightest along the
+   top edge and fall away down the sides; nothing is filled. Browsers without color-mix keep the plain outlines. */
+@supports (background: color-mix(in srgb, red 50%, transparent)) {
+  .mode-glasses :is(.tile, .card, .daystrip, .need, .dayrow, .thingrow, .pill, .read, .seg, .canvasbox, .tipbox) {
+    --rimc: var(--rim, rgba(255, 255, 255, 0.66));
+    border-color: transparent;
+    background: linear-gradient(#000, #000) padding-box,
+      linear-gradient(172deg, var(--rimc) 0%, color-mix(in srgb, var(--rimc) 38%, transparent) 60%, color-mix(in srgb, var(--rimc) 60%, transparent) 100%) border-box;
+  }
+  .mode-glasses :is(.tile, .card) { --rim: var(--k); }
+  .mode-glasses .daystrip { --rim: var(--day); }
+  .mode-glasses :is(.need.got, .dayrow.on) { --rim: var(--room); }
+  .mode-glasses :is(.seg.on, .tipbox) { --rim: var(--sun); }
+  .mode-glasses.speaking .read { --rim: var(--sun); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
