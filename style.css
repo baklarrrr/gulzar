@@ -811,7 +811,14 @@ html[lang="ur"].mode-glasses .stepbody { gap: 16px; }
 .drawbar .swatches.inbar { display: none; }
 .tipbox { grid-area: tip; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 1rem; padding: 0.6rem 0.9rem; border-radius: 18px; border: 3px solid var(--sun); background: var(--sun-t); }
 .tipbox > .say { flex: 1 1 100%; min-width: 0; }
-.tiptext { flex: 1 1 11rem; min-width: 0; }
+html[lang="ur"] .tipbox > .say { padding-top: 0.35em; } /* room for the tall letters under the box's edge */
+.tiprow { display: flex; align-items: center; gap: 0 0.7rem; flex: 1 1 100%; min-width: 0; }
+.tiprow .say { flex: 1 1 auto; min-width: 0; }
+.tipnav .read { min-height: 3.4rem; }
+/* While a step shows, it takes the title row: the step names the part, and Hide brings the title and Paper back. */
+.drawtop.stepping { display: none; }
+.drawside .art g.old { display: none; } /* the picture beside the canvas uses the canvas's code: grey, the step gold */
+.drawside .art g.ghost { opacity: 0.55; }
 .tipof { display: block; font-size: 1.1rem; font-weight: 700; color: var(--soft); }
 .tipbox .say { display: block; }
 .tipnav { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.8rem; flex: 1 1 100%; min-width: 0; }
@@ -828,7 +835,7 @@ html[lang="ur"] .tipbox { row-gap: 0.6rem; }
 .canvasbox:has(#pad:focus-visible) { box-shadow: var(--focus-ring); }
 .space { position: absolute; inset: var(--band) 0.5rem 0.5rem; pointer-events: none; }
 .lookart { position: absolute; inset: 0; width: 100%; height: 100%; }
-.canvasbox.look #pad, .canvasbox.look .pencursor { visibility: hidden; }
+.canvasbox.look .pencursor { visibility: hidden; } /* her lines stay over the whole picture */
 #pad { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; }
 .guide { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; fill: none; stroke: var(--ink); color: var(--ink); stroke-linecap: round; stroke-linejoin: round; }
 .guide * { vector-effect: non-scaling-stroke; }
@@ -917,7 +924,8 @@ html[lang="ur"] .tipbox { row-gap: 0.6rem; }
   .drawmain { grid-template-columns: minmax(11rem, 0.24fr) minmax(0, 1fr); }
   .tipbox { padding: 0.3rem 0.7rem; gap: 0.2rem 0.6rem; }
   .tipbox .say, .size-xl .tipbox .say, html[lang="ur"].size-xl .tipbox .say { font-size: 1.05rem; line-height: 1.3; }
-  html[lang="ur"] .tipbox .say, html[lang="ur"].size-xl .tipbox .say { line-height: 1.6; padding-top: 0.15em; }
+  html[lang="ur"] .tipbox .say, html[lang="ur"].size-xl .tipbox .say { line-height: 1.6; }
+  .tipnav .read { min-height: 2.8rem; }
   /* At extra-large text a short screen cannot hold the step above the canvas: while it shows, the step takes the
      colours' place beside the canvas (Hide brings them back) and the count steps aside. */
   .size-xl .drawmain.tipping { grid-template-columns: minmax(11rem, 1fr) minmax(0, 1fr); grid-template-areas: "tip canvas" "tip canvas"; }
@@ -950,9 +958,12 @@ html[lang="ur"] .tipbox { row-gap: 0.6rem; }
 .mode-glasses .tipbox { width: 100%; text-align: start; align-items: center; }
 .mode-glasses .tipof { font-size: 1.4rem; }
 html[lang="ur"].mode-glasses.size-xl .tipbox .say { font-size: 1.7rem; line-height: 1.85; }
-html[lang="ur"] .tiptext .say { margin-top: 0.3em; }
 .tiphide { margin-inline-start: auto; padding: 0.2rem 0.7rem; border-radius: 999px; border: 2px solid var(--line); font-size: 1.25rem; font-weight: 700; color: var(--soft); flex: none; }
-.mode-glasses .canvasbox { border-width: 2px; }
+.mode-glasses .canvasbox { border-width: 3px; }
+.mode-glasses .primary.waiting { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55); } /* quiet until there is a line */
+.mode-glasses .primary.waiting:focus { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55), var(--focus-ring); }
+.mode-glasses.size-xl .colourbtn .clbl { display: none; }
+.mode-glasses.size-xl .colourbtn { padding: 0 0.75rem; }
 .mode-glasses .canvasbox { --band: 2.6rem; }
 .mode-glasses .emptyhint { font-size: 1.25rem; }
 .mode-glasses .drawbar { flex-wrap: wrap; gap: 8px; }
@@ -969,6 +980,9 @@ html[lang="ur"] .tiptext .say { margin-top: 0.3em; }
 .mode-glasses .canvasbox:has(#pad:focus-visible) { box-shadow: none; }
 .mode-glasses .guide .rest { opacity: 0.55; stroke-width: 3px; }
 .mode-glasses .guide .now { stroke-width: 5px; }
+
+/* While a step shows the hint is hidden, so its band goes back to the picture (not while the pen's caption needs it). */
+.drawmain.tipping .canvasbox:not(.keycap) { --band: 0.5rem; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

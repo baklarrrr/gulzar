@@ -200,6 +200,7 @@ const speech = {
     u.onend = () => document.documentElement.classList.remove('speaking');
     u.onerror = () => document.documentElement.classList.remove('speaking');
     speechSynthesis.speak(u);
+    this.lastSaidAt = Date.now();
     return true;
   },
 
@@ -952,8 +953,8 @@ const pad = {
   },
 
   // Drawing with swipes (the glasses' fallback, and any keyboard): a pinch (Enter) shows the pen, the next pinch
-  // puts it down, swipes draw, a pinch lifts it. With the pen up, swiping past an edge leaves the canvas. Without
-  // the pen, swipes move between buttons as usual, so the canvas never traps them.
+  // puts it down, swipes draw, and a pinch lifts it and puts it away. With the pen shown but up, swiping past an
+  // edge leaves the canvas. Without the pen, swipes move between buttons as usual, so the canvas never traps them.
   keyPen(e) {
     const p = this.pen;
     if (e.key === 'Enter' || e.key === ' ') {
@@ -961,6 +962,7 @@ const pad = {
       if (Date.now() - this.pointerAt < 400) return; // the same pinch already drew a line
       if (!p.on) {
         p.on = true;
+        this.penAgain = false;
         const b = this.bounds();
         p.x = Math.min(Math.max(p.x, b.x0), b.x1);
         p.y = Math.min(Math.max(p.y, b.y0), b.y1);
@@ -973,6 +975,9 @@ const pad = {
         this.changed(false);
       } else {
         this.liftPen();
+        p.on = false;
+        this.penAgain = true;
+        if (!this.againSaid) { this.againSaid = true; speech.say(t('penAgain')); }
       }
       this.showPen();
       return;
@@ -1012,6 +1017,7 @@ const pad = {
   penOff() {
     this.liftPen();
     this.pen.on = false;
+    this.penAgain = false;
     this.showPen();
   },
 
@@ -1026,7 +1032,8 @@ const pad = {
     cur.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
     cur.style.setProperty('--c', this.css(this.colour));
     const cap = $('#pencap');
-    if (cap) cap.textContent = p.on ? t(p.down ? 'penDown' : 'penUp') : '';
+    if (cap) cap.textContent = p.on ? t(p.down ? 'penDown' : 'penUp') : this.penAgain ? t('penAgain') : '';
+    box.classList.toggle('keycap', !!(cap && cap.textContent)); // the caption keeps its band
   },
 
   width() { return Math.max(8, 4.9 * this.m.s); },
@@ -1155,16 +1162,19 @@ function drawPageHtml() {
   const total = a ? a.steps.length : 0;
   const helping = tip > 0 || look;
   const tipLabel = !helping ? t(glasses ? 'stepsShort' : 'showHow') : tip < total ? t('nextStep') : t('hideSteps');
-  const tipsBtn = a ? `<button class="pill tips" data-act="tips" data-say="${esc(tipLabel)}">${esc(tipLabel)}</button>` : '';
+  // The glasses bar shows the short Next and Hide, so Done keeps its row; the voice still says the whole label.
+  const tipShown = glasses && helping ? t(tip < total ? 'nextShort' : 'hideShort') : tipLabel;
+  const tipsBtn = a ? `<button class="pill tips" data-act="tips" data-say="${esc(tipLabel)}">${esc(tipShown)}</button>` : '';
   const modeBtn = a ? `<button class="pill mode" data-act="mode">${pic(paper ? 'paintbrush' : 'page_facing_up')}<span class="long">${esc(paper ? t('onScreenBtn') : t('onPaperBtn'))}</span><span class="short">${esc(paper ? t('screenShort') : t('paperShort'))}</span></button>` : '';
   let tipBox = '';
   if (a && helping) {
     const lines = look ? [['say', t('wholePicture')]] : [['tipof', t('stepOf', { n: tip, t: total })], ['say', L(a.steps[tip - 1])]];
     tipBox = glasses
-      // On the glasses the step line itself puts the steps away: one pinch on it.
-      ? `<button class="tipbox" data-act="tipHide" data-say="${esc(t('hideSteps'))}"><span class="tiptext">${lines.map(([c, x]) => `<span class="${c}">${esc(x)}</span>`).join('')}</span><span class="tiphide">${esc(t('hideShort'))}</span></button>`
+      // On the glasses the step line itself puts the steps away: one pinch on it. It reads the step when the focus
+      // lands on it, and Hide shares the count's line so the sentence has the whole width.
+      ? `<button class="tipbox" data-act="tipHide" data-say="${esc(`${drawSay()} ${t('hideSteps')}`)}"><span class="tiprow">${look ? `<span class="say">${esc(lines[0][1])}</span>` : `<span class="tipof">${esc(lines[0][1])}</span>`}<span class="tiphide">${esc(t('hideShort'))}</span></span>${look ? '' : `<span class="say">${esc(lines[1][1])}</span>`}</button>`
       // On a touch screen the step's words come first, across the box; the count sits with the buttons under them.
-      : `<div class="tipbox"><p class="say">${esc(lines[lines.length - 1][1])}</p><div class="tipnav">${look ? '' : `<p class="tipof">${esc(lines[0][1])}</p>`}<div class="tipbtns">
+      : `<div class="tipbox"><p class="say">${esc(lines[lines.length - 1][1])}</p><div class="tipnav">${look ? '' : `<p class="tipof">${esc(lines[0][1])}</p>`}${readBtn(true)}<div class="tipbtns">
           <button class="pill" data-act="tipPrev"${tip <= 1 ? ' disabled' : ''} aria-label="${esc(t('prevStep'))}"><span class="arrow back" aria-hidden="true"></span></button>
           ${tip < total ? `<button class="pill" data-act="tips" aria-label="${esc(t('nextStep'))}"><span class="long">${esc(t('nextStep'))}</span><span class="short">${esc(t('nextShort'))}</span><span class="arrow" aria-hidden="true"></span></button>` : ''}
           <button class="pill" data-act="tipHide"><span class="long">${esc(t('hideSteps'))}</span><span class="short">${esc(t('hideShort'))}</span></button>
@@ -1182,7 +1192,7 @@ function drawPageHtml() {
        <span class="pencursor" id="pencursor" aria-hidden="true"></span><p class="pencap" id="pencap" aria-live="polite"></p>
        <p class="emptyhint" id="emptyhint">${esc(hint)}</p>`;
   const colours = glasses
-    ? `<button class="pill colourbtn" data-act="colourNext" style="--c:${PAD_COLOURS[pad.colour].css}"><span class="cdot" aria-hidden="true"></span><span>${esc(t('colour'))}</span></button>`
+    ? `<button class="pill colourbtn" data-act="colourNext" data-say="${esc(t('colour'))}" aria-label="${esc(t('colour'))}" style="--c:${PAD_COLOURS[pad.colour].css}"><span class="cdot" aria-hidden="true"></span><span class="clbl">${esc(t('colour'))}</span></button>`
     : swatches('inbar');
   const barTips = glasses || !helping ? tipsBtn : '';
   const tools = paper
@@ -1192,7 +1202,7 @@ function drawPageHtml() {
   const kept = paper ? [] : draft.load(id);
   const waiting = !paper && kept.length - 1 === kept.map((x) => !!x.wipe).lastIndexOf(true);
   const done = `<button class="primary big${waiting ? ' waiting' : ''}"${waiting ? ' aria-disabled="true"' : ''} data-act="${paper ? 'paperdone' : 'savedrawing'}" data-id="${esc(a ? id : 'free')}">${esc(t('done'))}<span class="check" aria-hidden="true"></span></button>`;
-  return `<header class="top drawtop">
+  return `<header class="top drawtop${helping ? ' stepping' : ''}">
       <div class="titles">${a ? `<span class="artbox lead">${art(id, 0)}</span>` : ''}<div><h1 tabindex="-1">${esc(name)}</h1></div></div>
       <div class="tools">${modeBtn}${readBtn(true)}</div>
     </header>
@@ -1218,6 +1228,7 @@ function renderDraw({ focus = '', say = false } = {}) {
   applyLook();
   lastCanVoice = canVoice();
   speech.stop();
+  clearTimeout(focusTimer); // a pending "what the focus is on" belongs to the page being replaced
   pad.canvas = null;
   screenEl.innerHTML = drawPageHtml();
   screenEl.dataset.screen = 'draw';
@@ -1229,7 +1240,12 @@ function renderDraw({ focus = '', say = false } = {}) {
   if (isGlasses() || lastInput === 'key') {
     const shown = (sel) => [...screenEl.querySelectorAll(sel)].find((el) => el.offsetParent !== null && !el.disabled && getComputedStyle(el).visibility !== 'hidden');
     const f = (focus && shown(focus)) || shown('#pad') || shown('.drawbar .primary');
-    if (f) f.focus({ preventScroll: true });
+    if (f) {
+      // The page speaks its own line just below; the focus voice would cut it off half a second in.
+      skipFocusSpeech = !!(say && settings.autoRead);
+      f.focus({ preventScroll: true });
+      skipFocusSpeech = false;
+    }
   }
   if (say && settings.autoRead) speech.say(current.say);
 }
@@ -1247,8 +1263,12 @@ function startDrawPage() {
     removeEventListener('pointerdown', intro, true);
     removeEventListener('keydown', intro, true);
     if (!settings.autoRead) return;
-    if (e.type === 'keydown') skipFocusSpeech = true;
-    setTimeout(() => speech.say(current.say), 30);
+    if (e.type === 'keydown') {
+      skipFocusSpeech = true; // the swipe's own focus move stays quiet for the page's line
+      setTimeout(() => { skipFocusSpeech = false; }, 0);
+    }
+    const at = Date.now();
+    setTimeout(() => { if (!(speech.lastSaidAt >= at)) speech.say(current.say); }, 30);
   };
   addEventListener('pointerdown', intro, true);
   addEventListener('keydown', intro, true);
@@ -1680,7 +1700,7 @@ screenEl.addEventListener('click', (e) => {
       break;
     case 'tips': {
       const total = ACTIVITIES[drawState.id].steps.length;
-      if (isGlasses() && !drawState.tip && !drawState.look) {
+      if (isGlasses() && !drawState.tip && !drawState.look && !drawState.paper) {
         drawState.look = true; // on the glasses: the whole picture first, big
       } else if (drawState.look) {
         drawState.look = false;
@@ -1690,7 +1710,7 @@ screenEl.addEventListener('click', (e) => {
       }
       const showing = drawState.look || drawState.tip > 0;
       // On the glasses focus goes back to the canvas once a step shows, so the next pinch or drag draws.
-      const focus = isGlasses() && drawState.tip > 0 ? '#pad' : '[data-act="tips"]';
+      const focus = isGlasses() && drawState.tip > 0 && !drawState.paper ? '#pad' : '[data-act="tips"]';
       renderDraw({ focus, say: showing });
       break;
     }
@@ -1701,7 +1721,7 @@ screenEl.addEventListener('click', (e) => {
     case 'tipHide':
       drawState.tip = 0;
       drawState.look = false;
-      renderDraw({ focus: isGlasses() ? '#pad' : '[data-act="tips"]' });
+      renderDraw({ focus: isGlasses() && !drawState.paper ? '#pad' : '[data-act="tips"]' });
       break;
     case 'mode':
       drawState.paper = !drawState.paper;
