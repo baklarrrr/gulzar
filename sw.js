@@ -3,7 +3,7 @@
 // Keeps Gulzar usable on a weak connection. Page code is network-first (an update shows on the next
 // launch); pictures and fonts never change, so they come from the cache once fetched. Only this site's
 // own files are handled.
-const CACHE = 'gulzar-v5';
+const CACHE = 'gulzar-v6';
 const SHELL = ['./', 'index.html', 'style.css', 'content.js', 'app.js', 'icon.svg', 'icon-mono.svg', 'manifest.webmanifest', 'fonts/atkinson-latin.woff2'];
 
 self.addEventListener('install', (event) => {
@@ -13,7 +13,10 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      // Every app on this origin shares Cache Storage. Remove only this app’s old shells.
+      .then((keys) => Promise.all(keys
+        .filter((key) => /^gulzar-v\d+$/.test(key) && key !== CACHE)
+        .map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
 });
