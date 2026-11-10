@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="application-name" content="Gulzar">
+  <meta name="description" content="Draw with your own hand: trace the outline or draw your own way.">
+  <meta name="mrbd-web-app-capable" content="yes">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#000000">
+  <title>Gulzar</title>
+  <!-- Pinch-and-drag on Meta Ray-Ban Display: the glasses read this once, when the page loads, so it has to be in
+       the page's first stylesheet. It is only on this page; the rest of the app keeps the usual swipe and pinch. -->
+  <style>body { touch-action: none; }</style>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preload" href="fonts/atkinson-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="drawpage">
+  <main id="screen" class="screen"></main>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <noscript><p class="noscript">Gulzar needs JavaScript to run.</p></noscript>
+  <script src="content.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
