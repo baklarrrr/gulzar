@@ -235,7 +235,13 @@ function wake() {
   if (!document.hidden && isGlasses()) calmTimer = setTimeout(rest, 15000);
 }
 addEventListener('pointerdown', () => { lastInput = 'pointer'; speech.unlocked = true; wake(); }, true);
-addEventListener('keydown', () => { lastInput = 'key'; speech.unlocked = true; wake(); }, true);
+addEventListener('keydown', (e) => {
+  lastInput = 'key';
+  // A swipe after lifting the pen starts another gesture. Its next pinch can act immediately.
+  if (DRAW_PAGE && !pad.live && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) pad.pointerAt = 0;
+  speech.unlocked = true;
+  wake();
+}, true);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) { wake(); return; }
   clearTimeout(calmTimer);
